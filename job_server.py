@@ -839,5 +839,5 @@ if __name__ == '__main__':
     if not PLAYWRIGHT_OK:
         print('Run: pip install playwright && playwright install chromium')
     print('Press Ctrl+C to stop\n')
-    HTTPServer(('localhost', PORT), Handler).serve_forever()
+    HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
 
