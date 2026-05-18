@@ -3,5 +3,8 @@ __pycache__/
 .env
 *.csv
 *.txt
+!requirements.txt
 *.pdf
 *.xlsx
+
+.vercel
