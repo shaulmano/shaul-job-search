@@ -1,0 +1,1045 @@
+﻿<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מרכז חיפוש עבודה — שאול מנו</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --bg: #f1f5f9;
+            --card: #fff;
+            --text: #1e293b;
+            --muted: #64748b;
+            --border: #e2e8f0;
+            --green: #10b981;
+            --warn: #f59e0b;
+            --red: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; padding: 20px; direction: rtl;
+        }
+        .container { max-width: 1150px; margin: 0 auto; }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #a855f7 100%);
+            border-radius: 20px; padding: 30px; text-align: center;
+            color: white; margin-bottom: 22px;
+        }
+        .header h1 { font-size: 2em; font-weight: 800; margin-bottom: 5px; }
+        .header p  { opacity: .88; }
+
+        /* Card */
+        .card {
+            background: var(--card); border-radius: 16px; padding: 22px;
+            margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.07);
+            border: 1px solid var(--border);
+        }
+        .card-title {
+            display: flex; align-items: center; gap: 9px;
+            font-size: 1.05em; font-weight: 700; color: var(--primary);
+            margin-bottom: 18px; padding-bottom: 11px;
+            border-bottom: 2px solid #eef0ff;
+        }
+
+        /* Upload */
+        .upload-zone {
+            border: 3px dashed #c7d2fe; border-radius: 12px;
+            padding: 34px 20px; text-align: center; cursor: pointer;
+            transition: all .3s; background: #fafbff; user-select: none;
+        }
+        .upload-zone:hover, .upload-zone.drag { border-color: var(--primary); background: #eef2ff; }
+        .upload-zone .ico { font-size: 2.6em; margin-bottom: 9px; }
+        .upload-zone p { color: var(--muted); font-size: .93em; }
+        .upload-zone strong { color: var(--primary); }
+        #fileInput { display: none; }
+        .file-tag {
+            display: none; margin-top: 12px; padding: 8px 15px;
+            background: #eef2ff; border-radius: 8px;
+            font-size: .86em; color: var(--primary); font-weight: 600;
+        }
+        .file-tag.show { display: flex; align-items: center; gap: 7px; }
+        .cv-preview {
+            display: none; margin-top: 10px; padding: 13px;
+            background: #f8fafc; border: 1px solid var(--border);
+            border-radius: 8px; max-height: 120px; overflow-y: auto;
+            font-size: .8em; color: var(--muted); white-space: pre-wrap; text-align: right;
+        }
+        .cv-preview.show { display: block; }
+
+        /* Multi-CV list */
+        .cv-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+        .cv-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px; border-radius: 10px;
+            background: #f8fafc; border: 1px solid var(--border);
+            transition: all .2s;
+        }
+        .cv-item:hover { border-color: #c7d2fe; background: #eef2ff; }
+        .cv-item-icon { font-size: 1.4em; flex-shrink: 0; }
+        .cv-item-info { flex: 1; min-width: 0; }
+        .cv-item-name { font-weight: 700; font-size: .9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cv-item-meta { font-size: .76em; color: var(--muted); margin-top: 2px; }
+        .cv-item-role {
+            font-size: .73em; padding: 2px 9px; border-radius: 10px;
+            background: #eef2ff; color: var(--primary); font-weight: 700; flex-shrink: 0;
+        }
+        .cv-remove {
+            background: transparent; border: none; cursor: pointer;
+            color: var(--muted); font-size: 1.1em; padding: 2px 6px;
+            border-radius: 5px; transition: all .2s; flex-shrink: 0;
+        }
+        .cv-remove:hover { background: #fee2e2; color: var(--red); }
+
+        /* Filters */
+        .filters-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+        }
+        .filter-section h3 {
+            font-size: .78em; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+        }
+        .c-item {
+            display: flex; align-items: center; gap: 9px;
+            padding: 8px 12px; border-radius: 9px; cursor: pointer;
+            border: 2px solid transparent; background: #f8fafc;
+            transition: all .18s; margin-bottom: 6px; user-select: none;
+        }
+        .c-item:hover { background: #eef2ff; border-color: #c7d2fe; }
+        .c-item input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
+        .c-item span  { font-size: .91em; flex: 1; display: flex; align-items: center; justify-content: space-between; }
+        .c-item:has(input:checked) { background: #eef2ff; border-color: var(--primary); }
+
+        .badge { font-size: .67em; padding: 2px 7px; border-radius: 9px; font-weight: 700; flex-shrink: 0; }
+        .b-social  { background: #dbeafe; color: #1d4ed8; }
+        .b-board   { background: #dcfce7; color: #15803d; }
+        .b-agency  { background: #fef3c7; color: #b45309; }
+        .b-search  { background: #f0f9ff; color: #0369a1; }
+
+        /* Buttons */
+        .actions-row { display: flex; gap: 13px; margin: 20px 0; }
+        .btn {
+            flex: 1; padding: 15px 10px; border: none; border-radius: 12px;
+            font-size: .97em; font-weight: 700; cursor: pointer;
+            transition: all .25s; display: flex; align-items: center; justify-content: center; gap: 9px;
+        }
+        .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(99,102,241,.35); }
+        .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+        .btn-outline { background: white; color: var(--primary); border: 2px solid var(--primary); }
+        .btn-outline:hover:not(:disabled) { background: #eef2ff; }
+        .btn-outline:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* Status */
+        .status {
+            display: none; padding: 10px 17px; border-radius: 9px;
+            font-weight: 600; font-size: .9em; margin-bottom: 15px;
+            align-items: center; gap: 8px;
+        }
+        .status.show { display: flex; }
+        .status.ok  { background: #dcfce7; color: #15803d; }
+        .status.inf { background: #dbeafe; color: #1d4ed8; }
+        .status.wrn { background: #fef9c3; color: #a16207; }
+        .status.err { background: #fee2e2; color: #b91c1c; }
+
+        /* Server error box */
+        .server-error {
+            display: none; padding: 20px; background: #fff7ed;
+            border: 2px solid #fed7aa; border-radius: 12px; margin-bottom: 18px;
+        }
+        .server-error.show { display: block; }
+        .server-error h3 { color: #c2410c; margin-bottom: 10px; }
+        .server-error code {
+            display: block; padding: 10px 14px; background: #1e293b;
+            color: #fde68a; border-radius: 8px; font-size: .88em;
+            margin: 8px 0; letter-spacing: .3px;
+        }
+
+        /* Spinner */
+        .spinner {
+            display: none; align-items: center; justify-content: center;
+            gap: 14px; padding: 40px; color: var(--primary); font-weight: 600;
+        }
+        .spinner.show { display: flex; }
+        .spin-ring {
+            width: 36px; height: 36px; border: 4px solid #c7d2fe;
+            border-top-color: var(--primary); border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Job cards */
+        .jobs-wrap { display: none; }
+        .jobs-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+        }
+        .jobs-count { font-weight: 700; color: var(--text); }
+        .jobs-count span { color: var(--primary); }
+
+        .source-group { margin-bottom: 22px; }
+        .source-group-title {
+            display: flex; align-items: center; gap: 8px;
+            font-weight: 700; font-size: .92em; margin-bottom: 10px;
+            color: var(--text); padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .job-card {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; border-radius: 11px; margin-bottom: 9px;
+            background: #fafbff; border: 1px solid var(--border);
+            transition: all .18s; gap: 16px;
+        }
+        .job-card:hover { box-shadow: 0 3px 14px rgba(0,0,0,.1); transform: translateX(-2px); }
+        .job-card.match-high  { border-right: 4px solid var(--green); }
+        .job-card.match-med   { border-right: 4px solid var(--warn); }
+        .job-card.match-low   { border-right: 4px solid var(--border); }
+
+        .job-info { flex: 1; min-width: 0; }
+        .job-title {
+            font-weight: 700; font-size: .97em; margin-bottom: 3px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .job-company { color: var(--muted); font-size: .85em; margin-bottom: 5px; }
+        .job-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: .78em; color: var(--muted); }
+        .job-meta span { display: flex; align-items: center; gap: 4px; }
+
+        .job-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        .match-badge {
+            font-size: .8em; font-weight: 800; padding: 4px 10px;
+            border-radius: 20px; white-space: nowrap;
+        }
+        .match-high-badge { background: #dcfce7; color: #15803d; }
+        .match-med-badge  { background: #fef9c3; color: #a16207; }
+        .match-none-badge { background: #f1f5f9; color: var(--muted); }
+
+        .apply-btn {
+            background: var(--primary); color: white; border: none;
+            padding: 8px 16px; border-radius: 8px; cursor: pointer;
+            font-size: .84em; font-weight: 700; text-decoration: none;
+            white-space: nowrap; transition: background .2s;
+        }
+        .apply-btn:hover { background: var(--primary-dark); }
+
+        /* Applied state */
+        .job-card.applied {
+            background: #f0fdf4;
+            border-color: #86efac;
+            border-right: 4px solid #16a34a;
+            opacity: .82;
+        }
+        .job-card.applied .job-title { text-decoration: line-through; color: var(--muted); }
+        .applied-badge {
+            display: flex; align-items: center; gap: 5px;
+            background: #16a34a; color: white;
+            font-size: .78em; font-weight: 800;
+            padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+        }
+        .undo-btn {
+            background: transparent; color: var(--muted); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 8px; cursor: pointer;
+            font-size: .78em; font-weight: 600; white-space: nowrap; transition: all .2s;
+        }
+        .undo-btn:hover { background: #fee2e2; color: var(--red); border-color: var(--red); }
+        .mark-btn {
+            background: #dcfce7; color: #16a34a; border: 1.5px solid #86efac;
+            padding: 7px 13px; border-radius: 8px; cursor: pointer;
+            font-size: .82em; font-weight: 700; white-space: nowrap; transition: all .2s;
+        }
+        .mark-btn:hover { background: #16a34a; color: white; }
+
+        /* Filter toggle */
+        .filter-toggle {
+            display: flex; align-items: center; gap: 8px;
+            font-size: .85em; font-weight: 600; color: var(--muted);
+            cursor: pointer; user-select: none; padding: 5px 0;
+        }
+        .filter-toggle input { accent-color: var(--primary); width: 16px; height: 16px; }
+
+        /* No results */
+        .no-results {
+            text-align: center; padding: 40px 20px;
+            color: var(--muted); font-size: .95em;
+        }
+        .no-results .big { font-size: 2.5em; margin-bottom: 12px; }
+
+        /* Claude Prompt */
+        .prompt-wrap { display: none; }
+        .warn-tag {
+            display: none; align-items: center; gap: 7px;
+            padding: 7px 13px; background: #fff7ed; color: #c2410c;
+            border-radius: 8px; font-size: .83em; font-weight: 700; margin-bottom: 13px;
+        }
+        .warn-tag.show { display: flex; }
+        .prompt-box {
+            background: #0f172a; color: #cbd5e1; border-radius: 11px;
+            padding: 18px; font-family: Consolas, monospace; font-size: .81em;
+            line-height: 1.65; max-height: 380px; overflow-y: auto;
+            white-space: pre-wrap; direction: ltr; text-align: left;
+        }
+        .prompt-actions { display: flex; gap: 11px; margin-top: 13px; }
+        .copy-btn {
+            background: var(--primary); color: white; border: none;
+            padding: 9px 18px; border-radius: 8px; cursor: pointer;
+            font-size: .88em; font-weight: 700; transition: all .2s;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .copy-btn:hover  { background: var(--primary-dark); }
+        .copy-btn.copied { background: var(--green); }
+        .claude-btn {
+            background: #ff6b2b; color: white; border: none;
+            padding: 9px 18px; border-radius: 8px; cursor: pointer;
+            font-size: .88em; font-weight: 700; text-decoration: none;
+            display: flex; align-items: center; gap: 7px; transition: background .2s;
+        }
+        .claude-btn:hover { background: #e55a20; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 3px; }
+
+        /* Recruiter Modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.45); z-index: 1000;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-box {
+            background: white; border-radius: 16px; padding: 28px;
+            max-width: 520px; width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            direction: ltr; text-align: left;
+        }
+        .modal-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .modal-title { font-size: 1.05em; font-weight: 800; color: var(--primary); }
+        .modal-close {
+            background: transparent; border: none; font-size: 1.3em;
+            cursor: pointer; color: var(--muted); padding: 2px 6px;
+            border-radius: 6px; line-height: 1; transition: all .2s;
+        }
+        .modal-close:hover { background: #fee2e2; color: var(--red); }
+        .modal-job-info { font-size: .84em; color: var(--muted); margin-bottom: 14px; }
+        .modal-recruiter-label {
+            font-size: .8em; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: .4px; margin-bottom: 7px;
+        }
+        .modal-textarea {
+            width: 100%; min-height: 175px; padding: 13px;
+            border-radius: 10px; border: 1.5px solid var(--border);
+            font-family: inherit; font-size: .88em; line-height: 1.65;
+            resize: vertical; color: var(--text);
+        }
+        .modal-textarea:focus { outline: none; border-color: var(--primary); }
+        .modal-actions { display: flex; gap: 9px; margin-top: 13px; flex-wrap: wrap; }
+        .modal-actions .btn { flex: 1; min-width: 120px; padding: 10px 14px; font-size: .86em; }
+        .btn-dl  { background: #f0fdf4; color: #16a34a; border: 1.5px solid #86efac; }
+        .btn-dl:hover { background: #16a34a; color: white; }
+        .btn-li  { background: #0077b5; color: white; text-decoration: none; }
+        .btn-li:hover { background: #005f8e; }
+        .modal-steps {
+            margin-top: 13px; padding: 10px 14px; background: #f8fafc;
+            border-radius: 8px; font-size: .76em; color: var(--muted);
+            border: 1px solid var(--border); line-height: 1.7;
+        }
+
+        @media (max-width: 760px) {
+            .filters-grid { grid-template-columns: 1fr; }
+            .actions-row  { flex-direction: column; }
+            .job-card     { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>🔍 מרכז חיפוש עבודה</h1>
+        <p>שאול מנו &nbsp;·&nbsp; QA &amp; Program Management</p>
+    </div>
+
+    <!-- CV Upload -->
+    <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+            <span>📄 קורות חיים — העלאה לניתוח התאמה</span>
+            <span id="cvCounter" style="font-size:.82em;color:var(--muted);font-weight:600;"></span>
+        </div>
+        <div class="upload-zone" id="uploadZone">
+            <div class="ico">📋</div>
+            <p><strong>גרור לכאן</strong> קובץ אחד או יותר — או <strong>לחץ לבחירה</strong></p>
+            <p style="margin-top:6px;font-size:.84em;">PDF · DOCX · TXT · ניתן להעלות מספר קבצים</p>
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt" multiple>
+        </div>
+        <div class="cv-list" id="cvList"></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card">
+        <button onclick="clearAll()" style="float:left;background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:.82em;font-weight:600;transition:all .2s;" onmouseover="this.style.background='#fee2e2';this.style.color='#b91c1c';this.style.borderColor='#b91c1c'" onmouseout="this.style.background='transparent';this.style.color='var(--muted)';this.style.borderColor='var(--border)'">✕ נקה הכל</button>
+        <div class="card-title">⚙️ הגדרות חיפוש</div>
+        <div class="filters-grid">
+
+            <div class="filter-section">
+                <h3>📍 מקורות</h3>
+
+                <div style="font-size:.72em;font-weight:700;color:var(--muted);margin:4px 0 6px;text-transform:uppercase;letter-spacing:.4px;">לוחות דרושים</div>
+                <label class="c-item"><input type="checkbox" name="src" value="linkedin" checked>
+                    <span>LinkedIn <span class="badge b-social">רשת</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="indeed" checked>
+                    <span>Indeed IL <span class="badge b-board">דרושים</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="alljobs" checked>
+                    <span>AllJobs <span class="badge b-board">דרושים</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="drushim" checked>
+                    <span>Drushim <span class="badge b-board">דרושים</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="jobmaster">
+                    <span>Jobmaster <span class="badge b-board">דרושים</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="googlejobs">
+                    <span>Google Jobs <span class="badge b-search">חיפוש</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="comeet" checked>
+                    <span>Comeet <span class="badge b-search">חיפוש</span></span></label>
+
+                <div style="font-size:.72em;font-weight:700;color:var(--muted);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.4px;">חברות השמה</div>
+                <label class="c-item"><input type="checkbox" name="src" value="gotfriends" checked>
+                    <span>GotFriends <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="experis" checked>
+                    <span>Experis <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="dialog" checked>
+                    <span>דיאלוג <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="sqlink" checked>
+                    <span>SQLink <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="nisha" checked>
+                    <span>Nisha <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="malamteam" checked>
+                    <span>Malam Team <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="maof" checked>
+                    <span>מעוף <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="sela" checked>
+                    <span>Sela <span class="badge b-agency">השמה</span></span></label>
+                <label class="c-item"><input type="checkbox" name="src" value="one1" checked>
+                    <span>One1 <span class="badge b-agency">השמה</span></span></label>
+            </div>
+
+            <div class="filter-section">
+                <h3>⏱️ טווח זמן</h3>
+                <label class="c-item"><input type="radio" name="time" value="20h" checked>
+                    <span>⚡ 20 שעות אחורה</span></label>
+                <label class="c-item"><input type="radio" name="time" value="week">
+                    <span>📅 שבוע אחורה</span></label>
+                <label class="c-item"><input type="radio" name="time" value="month">
+                    <span>🗓️ חודש אחורה</span></label>
+            </div>
+
+            <div class="filter-section">
+                <h3>💼 תפקידים</h3>
+                <label class="c-item"><input type="checkbox" name="role" value="Head of QA" checked>
+                    <span>Head of QA</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="QA Manager" checked>
+                    <span>QA Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Director of QA" checked>
+                    <span>Director of QA</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="R&D Program Manager" checked>
+                    <span>R&D Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Technical Program Manager" checked>
+                    <span>Technical Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Program Manager" checked>
+                    <span>Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Project Manager" checked>
+                    <span>Project Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="PMO Manager" checked>
+                    <span>PMO Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Release Manager" checked>
+                    <span>Release Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Professional Services Manager" checked>
+                    <span>Professional Services Manager</span></label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-row">
+        <button class="btn btn-primary" id="searchBtn" onclick="searchJobs()">🔍 חפש משרות עכשיו</button>
+        <button class="btn btn-outline"  id="promptBtn" onclick="generatePrompt()" disabled>🤖 נתח התאמה עם Claude</button>
+    </div>
+
+    <!-- Status & Errors -->
+    <div class="status"       id="statusBar"><span id="statusMsg"></span></div>
+    <div class="server-error" id="serverError">
+        <h3>⚠️ השרת לא פועל</h3>
+        <p>כדי שהחיפוש יעבוד יש להפעיל את השרת המקומי:</p>
+        <code>start_jobs.bat</code>
+        <p style="margin-top:8px;font-size:.88em;">לחץ פעמיים על <strong>start_jobs.bat</strong> בתיקיית job-search, ואז לחץ שוב על "חפש".</p>
+    </div>
+
+    <!-- Spinner -->
+    <div class="spinner" id="spinner">
+        <div class="spin-ring"></div>
+        <span id="spinnerMsg">מחפש משרות...</span>
+    </div>
+
+    <!-- Results -->
+    <div class="jobs-wrap" id="jobsWrap">
+        <div class="card">
+            <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                <span>💼 משרות שנמצאו — <span id="totalCount">0</span> (<span id="appliedCount" style="color:var(--green)">0 הוגשו</span>)</span>
+                <label class="filter-toggle">
+                    <input type="checkbox" id="hideApplied" onchange="renderJobs()">
+                    הסתר משרות שהוגשו
+                </label>
+            </div>
+            <div id="jobsOutput"></div>
+        </div>
+    </div>
+
+    <!-- Claude Prompt -->
+    <div class="prompt-wrap" id="promptWrap">
+        <div class="card">
+            <div class="card-title">🤖 ניתוח התאמה עם Claude</div>
+            <div class="warn-tag" id="cvWarn">⚠️ לא הועלו קורות חיים — הפרומפט יכלול מקום פנוי</div>
+            <div class="prompt-box" id="promptBox"></div>
+            <div class="prompt-actions">
+                <button class="copy-btn" id="copyBtn" onclick="copyPrompt()">📋 העתק פרומפט</button>
+                <a href="https://claude.ai" target="_blank" class="claude-btn">✨ פתח Claude.ai</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Recruiter Message Modal -->
+<div class="modal-overlay" id="recruiterModal" onclick="closeModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div class="modal-title">📨 Message Recruiter</div>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-job-info" id="modalJobInfo"></div>
+        <div class="modal-recruiter-label">👤 <span id="modalRecruiterName"></span></div>
+        <textarea class="modal-textarea" id="modalMessage"></textarea>
+        <div class="modal-actions">
+            <button class="btn btn-outline" id="modalCopyBtn" onclick="copyModalMessage()">📋 העתק הודעה</button>
+            <button class="btn btn-dl"      id="modalDownloadBtn" onclick="downloadCv()">📄 הורד CV</button>
+            <a      class="btn btn-li"      id="modalLinkedInBtn" href="#" target="_blank">💼 פתח LinkedIn</a>
+        </div>
+        <div class="modal-steps">
+            <strong>1.</strong> העתק הודעה &nbsp;·&nbsp;
+            <strong>2.</strong> הורד CV &nbsp;·&nbsp;
+            <strong>3.</strong> פתח LinkedIn → Message → הדבק + צרף CV
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const SERVER = window.location.hostname === 'localhost' ? 'http://localhost:8765' : '/api';
+
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+/* ── State ── */
+let cvFiles  = [];   // [{name, text, role, file}]
+let allJobs  = [];
+let _recruiterCache = [];
+let appliedJobs = new Set(JSON.parse(localStorage.getItem('appliedJobs') || '[]'));
+
+// backwards compat: cvText = combined text of all CVs
+Object.defineProperty(window, 'cvText', { get: () => cvFiles.map(c => c.text).join('\n\n') });
+
+function saveApplied() {
+    localStorage.setItem('appliedJobs', JSON.stringify([...appliedJobs]));
+}
+
+function toggleApplied(url) {
+    if (appliedJobs.has(url)) appliedJobs.delete(url);
+    else appliedJobs.add(url);
+    saveApplied();
+    renderJobs();
+}
+
+/* ── Upload ── */
+const zone   = document.getElementById('uploadZone');
+const finput = document.getElementById('fileInput');
+
+zone.addEventListener('click',     () => finput.click());
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    [...e.dataTransfer.files].forEach(f => handleFile(f));
+});
+finput.addEventListener('change', e => {
+    [...e.target.files].forEach(f => handleFile(f));
+    finput.value = '';
+});
+
+async function handleFile(file) {
+    if (cvFiles.find(c => c.name === file.name)) return; // skip duplicates
+    const ext = file.name.split('.').pop().toLowerCase();
+    try {
+        const text = ext === 'txt' ? await readText(file)
+                   : ext === 'pdf' ? await readPdf(file)
+                   : '[קובץ Word — העתק טקסט ידנית]';
+        cvFiles.push({ name: file.name, text, role: guessRole(file.name), file });
+        renderCvList();
+        showStatus('ok', `✅ "${file.name}" נטען`);
+    } catch(e) {
+        showStatus('wrn', '⚠️ שגיאה: ' + e.message);
+    }
+}
+
+function guessRole(name) {
+    const n = name.toLowerCase();
+    if (n.includes('qa') || n.includes('quality') || n.includes('test')) return 'QA';
+    if (n.includes('program') || n.includes('pm') || n.includes('project')) return 'PM';
+    if (n.includes('release')) return 'Release';
+    return '';
+}
+
+function removeCV(idx) {
+    cvFiles.splice(idx, 1);
+    renderCvList();
+}
+
+function renderCvList() {
+    const list = document.getElementById('cvList');
+    const counter = document.getElementById('cvCounter');
+    counter.textContent = cvFiles.length ? `${cvFiles.length} קורות חיים` : '';
+
+    if (!cvFiles.length) { list.innerHTML = ''; return; }
+
+    list.innerHTML = cvFiles.map((cv, i) => `
+        <div class="cv-item">
+            <div class="cv-item-icon">📄</div>
+            <div class="cv-item-info">
+                <div class="cv-item-name">${escHtml(cv.name)}</div>
+                <div class="cv-item-meta">${cv.text.length.toLocaleString()} תווים</div>
+            </div>
+            ${cv.role ? `<span class="cv-item-role">${escHtml(cv.role)}</span>` : ''}
+            <button class="cv-remove" onclick="removeCV(${i})" title="הסר">✕</button>
+        </div>`).join('');
+}
+
+function readText(file) {
+    return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = rej;
+        r.readAsText(file, 'UTF-8');
+    });
+}
+
+async function readPdf(file) {
+    if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js לא נטען');
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let out = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+        const pg = await pdf.getPage(i);
+        const tc = await pg.getTextContent();
+        out += tc.items.map(x => x.str).join(' ') + '\n';
+    }
+    return out;
+}
+
+/* ── Helpers ── */
+function getSel(name)  { return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(x => x.value); }
+function getRadio(name){ return document.querySelector(`input[name="${name}"]:checked`)?.value; }
+
+function showStatus(type, msg) {
+    const b = document.getElementById('statusBar');
+    b.className = `status show ${type}`;
+    document.getElementById('statusMsg').textContent = msg;
+    setTimeout(() => b.classList.remove('show'), 7000);
+}
+
+function setLoading(on, msg = 'מחפש משרות...') {
+    document.getElementById('spinner').classList.toggle('show', on);
+    document.getElementById('spinnerMsg').textContent = msg;
+    document.getElementById('searchBtn').disabled = on;
+}
+
+/* ── Search ── */
+async function searchJobs() {
+    const roles   = getSel('role');
+    const time    = getRadio('time');
+    const sources = getSel('src');
+
+    if (!roles.length)   return showStatus('wrn', '⚠️ בחר לפחות תפקיד אחד');
+    if (!sources.length) return showStatus('wrn', '⚠️ בחר לפחות מקור אחד');
+
+    document.getElementById('serverError').classList.remove('show');
+    document.getElementById('jobsWrap').style.display = 'none';
+    setLoading(true, `מחפש ${roles.join(' / ')} ב-${sources.length} מקורות...`);
+
+    try {
+        const params = new URLSearchParams({
+            roles:   roles.join(','),
+            time,
+            sources: sources.join(',')
+        });
+
+        const resp = await fetch(`${SERVER}/search?${params}`, {
+            signal: AbortSignal.timeout(120000)
+        });
+
+        if (!resp.ok) throw new Error(`שגיאת שרת: ${resp.status}`);
+
+        const data = await resp.json();
+        allJobs = data.jobs || [];
+
+        displayJobs(allJobs, roles);
+        document.getElementById('promptBtn').disabled = false;
+
+    } catch(e) {
+        setLoading(false);
+        if (e.message.includes('fetch') || e.message.includes('NetworkError') || e.name === 'TypeError') {
+            document.getElementById('serverError').classList.add('show');
+        } else {
+            showStatus('err', '❌ ' + e.message);
+        }
+    }
+}
+
+/* ── Display jobs ── */
+const SOURCE_COLORS = {
+    'LinkedIn':    { color: '#0077b5', bg: '#e8f4fd', ico: '💼' },
+    'Indeed':      { color: '#003a9b', bg: '#e8edff', ico: '🔍' },
+    'AllJobs':     { color: '#7b2d8b', bg: '#fce8ff', ico: '📋' },
+    'Drushim':     { color: '#1a7a40', bg: '#e8ffe8', ico: '🔎' },
+    'Jobmaster':   { color: '#1565c0', bg: '#e3f2fd', ico: '⭐' },
+    'Google Jobs': { color: '#4285f4', bg: '#e8f0fe', ico: '🌐' },
+    'Comeet':      { color: '#2d6a4f', bg: '#d8f3dc', ico: '🎯' },
+    'GotFriends':  { color: '#e67e00', bg: '#fff8e1', ico: '🤝' },
+    'Experis':     { color: '#b71c1c', bg: '#fce4ec', ico: '🏢' },
+    'Dialog':      { color: '#0d5c9e', bg: '#e3f0fb', ico: '💬' },
+    'SQLink':      { color: '#1b5e20', bg: '#e8f5e9', ico: '🔗' },
+    'Nisha':       { color: '#6a1b9a', bg: '#f3e5f5', ico: '🌟' },
+    'Malam Team':  { color: '#c62828', bg: '#ffebee', ico: '🏗️' },
+    'Maof':        { color: '#00695c', bg: '#e0f2f1', ico: '🦅' },
+    'Sela':        { color: '#4527a0', bg: '#ede7f6', ico: '🎓' },
+    'One1':        { color: '#e65100', bg: '#fff3e0', ico: '1️⃣' },
+};
+
+let lastTargetRoles = [];
+
+function displayJobs(jobs, targetRoles) {
+    setLoading(false);
+    lastTargetRoles = targetRoles;
+
+    /* Score each job */
+    allJobs = jobs.map(j => ({ ...j, score: scoreJob(j, targetRoles) }));
+
+    /* Sort: applied last, then score desc, then date desc */
+    allJobs.sort((a, b) => {
+        const aApp = appliedJobs.has(a.url) ? 1 : 0;
+        const bApp = appliedJobs.has(b.url) ? 1 : 0;
+        if (aApp !== bApp) return aApp - bApp;
+        if (b.score !== a.score) return b.score - a.score;
+        return (b.date || '').localeCompare(a.date || '');
+    });
+
+    renderJobs();
+
+    document.getElementById('jobsWrap').style.display = 'block';
+    document.getElementById('jobsWrap').scrollIntoView({ behavior: 'smooth' });
+
+    const highMatch = allJobs.filter(j => j.score >= 7 && !appliedJobs.has(j.url)).length;
+    showStatus('ok', `✅ נמצאו ${jobs.length} משרות — ${highMatch} עם התאמה גבוהה (7+)`);
+}
+
+function renderJobs() {
+    _recruiterCache = [];
+    const out        = document.getElementById('jobsOutput');
+    const hideApplied = document.getElementById('hideApplied')?.checked;
+    out.innerHTML = '';
+
+    const appliedCount = allJobs.filter(j => appliedJobs.has(j.url)).length;
+    document.getElementById('totalCount').textContent = allJobs.length;
+    document.getElementById('appliedCount').textContent = appliedCount + ' הוגשו';
+
+    const visible = hideApplied ? allJobs.filter(j => !appliedJobs.has(j.url)) : allJobs;
+
+    if (!visible.length) {
+        out.innerHTML = `<div class="no-results">
+            <div class="big">${hideApplied ? '✅' : '🔍'}</div>
+            <p>${hideApplied ? 'כל המשרות שנמצאו כבר הוגשו!' : 'לא נמצאו משרות עם הפרמטרים הנוכחיים.'}</p>
+            <p style="margin-top:8px;font-size:.85em;">${hideApplied ? 'בטל את הסינון כדי לראות את כולן.' : 'נסה להרחיב את טווח הזמן או להוסיף מקורות.'}</p>
+        </div>`;
+        return;
+    }
+
+    /* Group by source */
+    const bySource = {};
+    visible.forEach(j => { (bySource[j.source] = bySource[j.source] || []).push(j); });
+
+    Object.entries(bySource).forEach(([src, list]) => {
+        const sc = SOURCE_COLORS[src] || { color: '#64748b', bg: '#f1f5f9', ico: '🔗' };
+        const grp = document.createElement('div');
+        grp.className = 'source-group';
+        grp.innerHTML = `<div class="source-group-title">
+            <span style="background:${sc.bg};color:${sc.color};padding:3px 9px;border-radius:7px;font-size:.84em;">${sc.ico} ${src}</span>
+            <span style="color:var(--muted);font-weight:400;font-size:.82em;">${list.length} משרות</span>
+        </div>`;
+
+        list.forEach(job => {
+            const isApplied  = appliedJobs.has(job.url);
+            const matchClass = isApplied ? '' : job.score >= 7 ? 'match-high' : job.score >= 4 ? 'match-med' : 'match-low';
+            const badgeClass = job.score >= 7 ? 'match-high-badge' : job.score >= 4 ? 'match-med-badge' : 'match-none-badge';
+            const badgeText  = job.score > 0 ? `${job.score}/10` : '';
+            const urlEsc     = escHtml(job.url);
+
+            let recruiterIdx = -1;
+            if (job.recruiter_name) {
+                recruiterIdx = _recruiterCache.length;
+                _recruiterCache.push({ name: job.recruiter_name, url: job.recruiter_url || '', title: job.title, company: job.company || '' });
+            }
+
+            const card = document.createElement('div');
+            card.className = `job-card ${matchClass} ${isApplied ? 'applied' : ''}`;
+            card.innerHTML = `
+                <div class="job-info">
+                    <div class="job-title">${escHtml(job.title)}</div>
+                    <div class="job-company">${escHtml(job.company || '')}</div>
+                    <div class="job-meta">
+                        ${job.location ? `<span>📍 ${escHtml(job.location)}</span>` : ''}
+                        ${job.date     ? `<span>📅 ${escHtml(job.date)}</span>`     : ''}
+                        ${recruiterIdx >= 0 ? `<span>👤 <button onclick="openRecruiterModal(${recruiterIdx})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-weight:600;font-size:inherit;padding:0;text-decoration:underline dotted;">${escHtml(job.recruiter_name)}</button></span>` : ''}
+                        ${isApplied    ? `<span style="color:#16a34a;font-weight:700;">✅ הגשתי</span>` : ''}
+                    </div>
+                </div>
+                <div class="job-actions">
+                    ${!isApplied && badgeText ? `<span class="match-badge ${badgeClass}">⭐ ${badgeText}</span>` : ''}
+                    ${isApplied
+                        ? `<span class="applied-badge">✅ הוגשה</span>
+                           <button class="undo-btn" onclick="toggleApplied('${urlEsc}')">בטל</button>`
+                        : `<button class="mark-btn" onclick="toggleApplied('${urlEsc}')">✅ הגשתי</button>
+                           <a href="${urlEsc}" target="_blank" class="apply-btn">הגש מועמדות ↗</a>`
+                    }
+                </div>`;
+            grp.appendChild(card);
+        });
+
+        out.appendChild(grp);
+    });
+}
+
+/* ── Simple local scoring based on CV text + role keywords ── */
+const ROLE_KEYWORDS = {
+    'Head of QA':                  ['head of qa','qa manager','quality','testing','automation','jira','agile','scrum','release'],
+    'QA Manager':                  ['qa manager','quality','testing','automation','selenium','test plan','jira','agile'],
+    'Director of QA':              ['director','qa','quality','strategy','leadership','testing','automation','agile'],
+    'R&D Program Manager':         ['r&d','program manager','engineering','roadmap','agile','scrum','jira','stakeholder','delivery'],
+    'Technical Program Manager':   ['technical','program manager','engineering','ci/cd','jenkins','github','agile','scrum'],
+    'Program Manager':             ['program manager','pmo','roadmap','stakeholder','delivery','agile','scrum','jira'],
+    'Project Manager':             ['project manager','pmo','roadmap','stakeholder','monday','jira','agile','scrum'],
+    'PMO Manager':                 ['pmo','program','project','portfolio','governance','reporting','stakeholder','kpi'],
+    'Release Manager':             ['release manager','ci/cd','devops','deployment','pipeline','git','jenkins','branching'],
+    'Professional Services Manager':['professional services','customer','implementation','onboarding','stakeholder','delivery'],
+};
+
+function scoreJob(job, targetRoles) {
+    if (!cvFiles.length) return 0;
+    // Best score across all uploaded CVs
+    return Math.max(...cvFiles.map(cv => scoreJobAgainstCv(job, targetRoles, cv.text)));
+}
+
+function scoreJobAgainstCv(job, targetRoles, cvText) {
+    if (!cvText || cvText.length < 50) return 0;
+
+    const cvLower    = cvText.toLowerCase();
+    const titleLower = (job.title + ' ' + job.company).toLowerCase();
+    let score = 0;
+
+    for (const role of targetRoles) {
+        const words = role.toLowerCase().split(' ');
+        if (words.every(w => titleLower.includes(w))) score += 4;
+        else if (words.some(w => titleLower.includes(w))) score += 2;
+    }
+
+    const allKeywords = targetRoles.flatMap(r => ROLE_KEYWORDS[r] || []);
+    const uniqueKw = [...new Set(allKeywords)];
+    let kwHits = 0;
+    for (const kw of uniqueKw) {
+        if (titleLower.includes(kw) && cvLower.includes(kw)) kwHits++;
+    }
+    score += Math.min(kwHits * 2, 4);
+
+    return Math.min(score, 10);
+}
+
+/* ── Generate Claude Prompt ── */
+function generatePrompt() {
+    const roles    = getSel('role');
+    const time     = getRadio('time');
+    const hasCv    = cvFiles.length > 0;
+    const hasJobs  = allJobs.length > 0;
+
+    const TIME_LABEL = { '20h': '24 השעות האחרונות', week: '7 הימים האחרונים', month: 'החודש האחרון' };
+
+    document.getElementById('cvWarn').classList.toggle('show', !hasCv);
+
+    const cvBlock = hasCv
+        ? cvFiles.map((cv, i) =>
+            `## קורות חיים ${cvFiles.length > 1 ? `#${i+1} — ${cv.name}` : ''}:\n\`\`\`\n${cv.text.trim()}\n\`\`\``
+          ).join('\n\n')
+        : `## קורות חיים:\n[הכנס כאן את טקסט קורות החיים שלך]`;
+
+    let jobsBlock = '';
+    if (hasJobs) {
+        const jobList = allJobs.slice(0, 30).map((j, i) =>
+            `${i+1}. ${j.title} | ${j.company} | ${j.recruiter_name || '—'} | ${j.date} | ${j.source} | ${j.url}`
+        ).join('\n');
+        jobsBlock = `\n\n## משרות שנמצאו (${allJobs.length} סה"כ):\n\`\`\`\n${jobList}\n\`\`\``;
+    }
+
+    const prompt =
+`המטרה: למצוא את המשרות עם הסיכוי הגבוה ביותר שאתקבל אליהן — לא רק התאמה כללית.
+
+${cvBlock}${jobsBlock}
+
+---
+
+שלבים:
+
+1. נתח את קורות החיים:
+   • כישורים מרכזיים
+   • ניסיון רלוונטי
+   • רמת בכירות
+   • סוגי תפקידים מתאימים
+
+2. ${hasJobs
+    ? 'עבור כל משרה ברשימה למעלה:'
+    : `מצא משרות שפורסמו ב-${TIME_LABEL[time]} ממקורות:\n   • LinkedIn, AllJobs, Drushim, GotFriends\n   • תפקידים: ${roles.join(' / ')}`}
+
+3. חשב ציון התאמה 1–10:
+   • התאמת תפקיד ותחומי אחריות
+   • חפיפת כישורים וניסיון
+   • רמת בכירות
+   • פוטנציאל קבלה אמיתי
+
+---
+
+פלט נדרש — טבלה בלבד:
+${cvFiles.length > 1
+    ? 'תפקיד | חברה | מגייס/ת | תאריך פרסום | מקור | ציון | קורות חיים מומלץ | קישור להגשה'
+    : 'תפקיד | חברה | מגייס/ת | תאריך פרסום | מקור | ציון | קישור להגשה'}
+
+חוקים:
+• רק משרות עם ציון 7+
+• מקסימום 10 משרות
+• מיון: ציון גבוה → עדכני
+• ציונים מחמירים, ללא ניפוח
+• משרות ספציפיות בלבד — לא קבוצות LinkedIn
+• אזור: תל אביב / רמת גן / חולון / הוד השרון / הרצליה / כפר סבא`;
+
+    document.getElementById('promptBox').textContent = prompt;
+    document.getElementById('promptWrap').style.display = 'block';
+    showStatus('inf', hasJobs
+        ? `🤖 פרומפט נוצר עם ${allJobs.length} משרות שנמצאו + קורות חיים`
+        : '🤖 פרומפט מוכן — העתק ל-Claude.ai');
+    document.getElementById('promptWrap').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyPrompt() {
+    const text = document.getElementById('promptBox').textContent;
+    const btn = document.getElementById('copyBtn');
+    navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✅ הועתק!'; btn.classList.add('copied');
+        setTimeout(() => { btn.innerHTML = '📋 העתק פרומפט'; btn.classList.remove('copied'); }, 2500);
+    }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        btn.textContent = '✅ הועתק!'; btn.classList.add('copied');
+        setTimeout(() => { btn.innerHTML = '📋 העתק פרומפט'; btn.classList.remove('copied'); }, 2500);
+    });
+}
+
+function clearAll() {
+    document.querySelectorAll('input[name="src"], input[name="role"]').forEach(el => el.checked = false);
+    document.querySelector('input[name="time"][value="20h"]').checked = true;
+    cvFiles = [];
+    renderCvList();
+    allJobs = [];
+    document.getElementById('jobsWrap').style.display   = 'none';
+    document.getElementById('promptWrap').style.display = 'none';
+    document.getElementById('serverError').classList.remove('show');
+    document.getElementById('promptBtn').disabled = true;
+    showStatus('inf', '✕ כל הבחירות נוקו');
+}
+
+function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Recruiter Modal ── */
+function openRecruiterModal(idx) {
+    const r = _recruiterCache[idx];
+    if (!r) return;
+    const firstName = r.name.split(/[\s(]/)[0];
+    const msg =
+`Hi ${firstName},
+
+I noticed you recently posted the ${r.title} position at ${r.company}, and I went ahead and submitted my application through the website.
+
+I wanted to reach out to you personally and share my CV directly — I'd really appreciate it if you could take a look.
+
+Thank you,
+Shaul Mano`;
+
+    document.getElementById('modalRecruiterName').textContent = r.name;
+    document.getElementById('modalJobInfo').textContent       = `${r.title} · ${r.company}`;
+    document.getElementById('modalMessage').value             = msg;
+    document.getElementById('modalLinkedInBtn').href          = r.url || '#';
+
+    const hasFile = cvFiles.some(c => c.file instanceof File);
+    document.getElementById('modalDownloadBtn').style.display = hasFile ? '' : 'none';
+
+    document.getElementById('recruiterModal').classList.add('show');
+}
+
+function closeModal(e) {
+    if (!e || e.target === document.getElementById('recruiterModal')) {
+        document.getElementById('recruiterModal').classList.remove('show');
+    }
+}
+
+function copyModalMessage() {
+    const text = document.getElementById('modalMessage').value;
+    const btn  = document.getElementById('modalCopyBtn');
+    const done = () => {
+        btn.textContent = '✅ הועתק!';
+        setTimeout(() => { btn.textContent = '📋 העתק הודעה'; }, 2500);
+    };
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        done();
+    });
+}
+
+function downloadCv() {
+    const cv = cvFiles.find(c => c.file instanceof File);
+    if (!cv) return;
+    const url = URL.createObjectURL(cv.file);
+    const a   = document.createElement('a');
+    a.href = url; a.download = cv.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+</script>
+</body>
+</html>
+

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: shaul-job-search
+    runtime: python
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
+    startCommand: python job_server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
