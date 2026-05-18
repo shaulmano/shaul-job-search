@@ -1,8 +1,16 @@
 {
-  "rewrites": [
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://shaul-job-search.onrender.com/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://shaul-job-search.onrender.com/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
