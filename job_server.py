@@ -296,44 +296,34 @@ def search_jobmaster(role, time_filter='20h'):
 
 # ── Indeed Israel ─────────────────────────────────────────────────────────────
 def search_indeed(role, time_filter='20h'):
+    import xml.etree.ElementTree as ET
     fromage = {'20h': '1', 'week': '7', 'month': '30'}.get(time_filter, '1')
-    url = f'https://il.indeed.com/jobs?q={quote(role)}&l=Israel&fromage={fromage}&sort=date'
+    url = f'https://il.indeed.com/rss?q={quote(role)}&l=Israel&fromage={fromage}&sort=date'
     try:
         r = requests.get(url, headers=HEADERS, timeout=20)
         r.raise_for_status()
-        soup = BeautifulSoup(r.text, 'html.parser')
+        root = ET.fromstring(r.content)
         jobs = []
-        for card in soup.select('[class*="job_seen_beacon"], .slider_item, [data-jk]'):
-            title_el   = card.select_one('[class*="jobTitle"] a, h2 a')
-            company_el = card.select_one('[data-testid="company-name"], .companyName')
-            loc_el     = card.select_one('[data-testid="text-location"], .companyLocation')
-            date_el    = card.select_one('[data-testid="myJobsStateDate"], .date')
-            link_el    = card.select_one('a[href*="/rc/clk"], a[id*="job_"]')
-            if not title_el: continue
-            href = link_el.get('href','') if link_el else ''
-            if href and not href.startswith('http'):
-                href = 'https://il.indeed.com' + href
+        for item in root.findall('./channel/item'):
+            title   = item.findtext('title', '').strip()[:120]
+            company = item.findtext('{http://www.indeed.com/about/legal}employer', '') or \
+                      item.findtext('author', '').strip()
+            date    = item.findtext('pubDate', '').strip()
+            link    = item.findtext('link', '').strip()
+            loc     = item.findtext('{http://www.indeed.com/about/legal}city', 'Israel').strip()
+            if not title:
+                continue
             jobs.append({
-                'title':    title_el.get_text(strip=True)[:120],
-                'company':  company_el.get_text(strip=True) if company_el else '',
-                'date':     date_el.get_text(strip=True) if date_el else '',
-                'url':      href,
+                'title':    title,
+                'company':  company,
+                'date':     date,
+                'url':      link,
                 'source':   'Indeed',
-                'location': loc_el.get_text(strip=True) if loc_el else 'Israel',
+                'location': loc,
             })
-        if jobs: return jobs[:50]
+        return jobs[:20]
     except Exception:
-        pass
-    # Fallback: Playwright
-    return pw_scrape(
-        url=url, source='Indeed', base_url='https://il.indeed.com',
-        selectors=['[class*="job_seen_beacon"]', '.slider_item', '[data-jk]'],
-        title_sel='h2 a, [class*="jobTitle"] a',
-        link_sel='a[href*="indeed"]',
-        company_sel='[data-testid="company-name"], .companyName',
-        date_sel='[data-testid="myJobsStateDate"], .date',
-        wait_sel='[class*="job_seen_beacon"]',
-    )
+        return []
 
 
 # ── Malam Team ────────────────────────────────────────────────────────────────
