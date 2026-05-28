@@ -6,7 +6,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://shaul-job-search.onrender.com/$1"
+      "dest": "https://shaul-job-search.fly.dev/$1"
     },
     {
       "src": "/(.*)",
