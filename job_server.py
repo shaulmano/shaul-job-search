@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Job Search Server — backend for job-search-hub.html
 Uses Playwright (headless Chrome) for JS-rendered Israeli sites.
@@ -6,6 +6,8 @@ Run via start_jobs.bat
 """
 
 import json
+import os
+import re
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -13,9 +15,15 @@ from urllib.parse import urlparse, parse_qs, quote
 import requests
 from bs4 import BeautifulSoup
 
-import os
+try:
+    from curl_cffi import requests as cf_requests
+    CURL_CFFI_OK = True
+except ImportError:
+    CURL_CFFI_OK = False
+
 PORT = int(os.environ.get('PORT', 8765))
-PW_SEMAPHORE = threading.Semaphore(2)   # max 2 Chromium instances at once
+PW_SEMAPHORE = threading.Semaphore(1)       # max 1 Chromium instance at once
+_LINKEDIN_LOCK = threading.Semaphore(1)     # max 1 LinkedIn request at a time
 
 HEADERS = {
     'User-Agent': (
@@ -27,7 +35,7 @@ HEADERS = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
 }
 
-TIME_MAP = {'20h': 'r72000', 'week': 'r604800', 'month': 'r2592000'}
+TIME_MAP = {'20h': 'r72000', '36h': 'r129600', '72h': 'r259200', 'week': 'r604800', 'month': 'r2592000'}
 
 # ── Playwright helper ─────────────────────────────────────────────────────────
 try:
@@ -86,15 +94,30 @@ def _linkedin_fetch_recruiter(job):
     return job
 
 
-def search_linkedin(role, time_filter):
+def search_linkedin(role, time_filter='20h'):
     import concurrent.futures
     tpr = TIME_MAP.get(time_filter, 'r72000')
     url = (
         'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
         f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}&start=0&count=50'
     )
-    r = requests.get(url, headers=HEADERS, timeout=20)
-    r.raise_for_status()
+    with _LINKEDIN_LOCK:
+        for attempt in range(3):
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=20)
+                if r.status_code == 429:
+                    wait = 15 * (attempt + 1)
+                    print(f'  [linkedin] 429 — waiting {wait}s before retry...')
+                    time.sleep(wait)
+                    continue
+                r.raise_for_status()
+                time.sleep(3)   # throttle: min 3s between LinkedIn requests
+                break
+            except requests.exceptions.HTTPError as e:
+                if attempt == 2:
+                    raise
+        else:
+            raise Exception('LinkedIn 429 after 3 retries')
 
     soup = BeautifulSoup(r.text, 'html.parser')
     jobs = []
@@ -185,76 +208,297 @@ def pw_scrape(url, source, base_url, selectors, title_sel, link_sel,
 
 
 # ── AllJobs ───────────────────────────────────────────────────────────────────
+# position IDs from SearchEngineData.js
+_ALLJOBS_POSITION_IDS = {
+    'qa manager':        [824],
+    'qa':                [432, 2011, 1533, 1532],
+    'qa automation':     [2011, 1984, 1913, 1533],
+    'automation':        [2011, 1984, 1913],
+    'qa team lead':      [1365],
+    'head of qa':        [824, 1365],
+    'quality assurance': [824, 432],
+    'tester':            [432, 1532],
+    'project manager':   [380, 1554],
+    'program manager':   [380],
+}
+
+def _alljobs_position_ids(role):
+    r = role.lower().strip()
+    if r in _ALLJOBS_POSITION_IDS:
+        return _ALLJOBS_POSITION_IDS[r]
+    for key, ids in _ALLJOBS_POSITION_IDS.items():
+        if key in r or r in key:
+            return ids
+    return [824]  # default to QA Manager
+
 def search_alljobs(role, time_filter='20h'):
-    url = f'https://www.alljobs.co.il/SearchResultsPage.aspx?position={quote(role)}'
-    return pw_scrape(
-        url=url, source='AllJobs', base_url='https://www.alljobs.co.il',
-        selectors=['.cJobItem', '.job-content', '[class*="job-item"]', 'article.job'],
-        title_sel='h2, h3, .job-title, [class*="title"]',
-        link_sel='a[href*="/Job/"]',
-        company_sel='[class*="company"]',
-        date_sel='[class*="date"], time',
-        wait_sel='.cJobItem',
-    )
+    if not CURL_CFFI_OK:
+        return []
+    base = 'https://www.alljobs.co.il'
+    pos_ids = _alljobs_position_ids(role)
+    jobs, seen = [], set()
+    for pos_id in pos_ids:
+        try:
+            url = f'{base}/SearchResultsGuest.aspx?page=1&position={pos_id}&type=&city=&region='
+            r = cf_requests.get(url, impersonate='chrome124', timeout=15)
+            soup = BeautifulSoup(r.content.decode('utf-8', errors='replace'), 'html.parser')
+            boxes = soup.find_all('div', id=re.compile(r'^job-box-container'))
+            for box in boxes:
+                job_id = box.get('id', '').replace('job-box-container', '')
+                if not job_id or job_id in seen:
+                    continue
+                seen.add(job_id)
+                company_a = box.find('a', href=re.compile(r'cid='))
+                company = company_a.get_text(strip=True) if company_a else ''
+                title = ''
+                h2 = box.find('h2')
+                if h2:
+                    title = h2.get_text(' ', strip=True)
+                if not title:
+                    hl = box.select_one('.job-content-top-title-highlight')
+                    if hl:
+                        raw = hl.get_text(' ', strip=True)
+                        company_txt = company_a.get_text(strip=True) if company_a else ''
+                        title = raw.replace(company_txt, '').strip()
+                if not title:
+                    title = role
+                jobs.append({
+                    'title': title[:120], 'company': company, 'date': '',
+                    'url': f'{base}/Search/UploadSingle.aspx?JobID={job_id}',
+                    'source': 'AllJobs', 'location': 'Israel',
+                })
+        except Exception as e:
+            print(f'  [AllJobs] pos={pos_id} error: {e}')
+    return jobs[:50]
 
 
 # ── Drushim ───────────────────────────────────────────────────────────────────
+_DRUSHIM_GENERIC = {'manager','director','head','lead','senior','sr','junior','jr',
+                    'of','the','and','at','in','for','a','an'}
+_DRUSHIM_HE_MAP  = {
+    'qa':          ['qa','בדיקות','איכות','אוטומציה','qc'],
+    'quality':     ['איכות','qa','qc','בדיקות'],
+    'test':        ['בדיקות','qa','test','אוטומציה'],
+    'automation':  ['אוטומציה','automation','בדיקות'],
+    'devops':      ['devops','דבאופס','תשתיות','ci'],
+    'cyber':       ['סייבר','cyber','אבטחת מידע'],
+    'data':        ['data','דאטה','bi','נתונים'],
+    'backend':     ['backend','back-end','server','node','python','java'],
+    'frontend':    ['frontend','front-end','react','angular','vue'],
+    'fullstack':   ['fullstack','full-stack','full stack'],
+    'mobile':      ['mobile','ios','android','flutter'],
+    'cloud':       ['cloud','ענן','aws','azure','gcp'],
+    'project':     ['project','פרויקט','pm','תוכנית','ניהול פרויקט'],
+    'program':     ['program','programme','תוכנית','פרוגרם','pmo','פרויקט'],
+    'product':     ['product','מוצר','פרודקט'],
+}
+
+def _drushim_keywords(role):
+    words = [w.lower() for w in role.split()]
+    specific = [w for w in words if w not in _DRUSHIM_GENERIC]
+    if not specific:
+        specific = words
+    kws = set(specific)
+    for w in specific:
+        for key, he_list in _DRUSHIM_HE_MAP.items():
+            if key in w or w in key:
+                kws.update(he_list)
+    return kws
+
 def search_drushim(role, time_filter='20h'):
-    url = f'https://www.drushim.co.il/jobs/searchjobs/?q={quote(role)}'
-    return pw_scrape(
-        url=url, source='Drushim', base_url='https://www.drushim.co.il',
-        selectors=['.job_', '[class^="job_"]', '.jobs-list li', 'article[class*="job"]'],
-        title_sel='h2, h3, [class*="title"], a',
-        link_sel='a[href*="/job/"]',
-        company_sel='[class*="company"], [class*="employer"]',
-        date_sel='time, [class*="date"]',
-        wait_sel='[class^="job_"]',
-    )
+    if not CURL_CFFI_OK:
+        return []
+    base = 'https://www.drushim.co.il'
+    try:
+        url = f'{base}/api/jobs/search?searchterm={quote(role)}'
+        r = cf_requests.get(url, impersonate='chrome124', timeout=15,
+                            headers={'Referer': base + '/'})
+        data = r.json()
+        result_list = data.get('ResultList', [])
+        keywords = _drushim_keywords(role)
+        jobs = []
+        for job in result_list:
+            info = job.get('JobInfo', {})
+            content = job.get('JobContent', {})
+            company_info = job.get('Company', {})
+            title = content.get('Name', '') or content.get('FullName', '')
+            link = info.get('Link', '')
+            if not title or not link:
+                continue
+            title_lower = title.lower()
+            if not any(kw in title_lower for kw in keywords):
+                continue
+            jobs.append({
+                'title': title[:120],
+                'company': company_info.get('CompanyDisplayName', ''),
+                'date': info.get('JumpDate', '')[:10],
+                'url': base + link,
+                'source': 'Drushim',
+                'location': 'Israel',
+            })
+        return jobs[:50]
+    except Exception as e:
+        print(f'  [Drushim] API error: {e}')
+        return []
 
 
 # ── GotFriends ────────────────────────────────────────────────────────────────
+GOTFRIENDS_ROLE_URLS = {
+    'head of qa':               '/jobslobby/qa/head-of-qa-team/',
+    'qa manager':               '/jobslobby/qa/qa-team-leader/',
+    'director of qa':           '/jobslobby/qa/',
+    'r&d program manager':      '/jobslobby/executive-position/development-manager-jobs/',
+    'technical program manager':'/jobslobby/executive-position/development-manager-jobs/',
+    'program manager':          '/jobslobby/executive-position/development-manager-jobs/',
+    'project manager':          '/jobslobby/executive-position/development-manager-jobs/',
+    'pmo manager':              '/jobslobby/executive-position/development-manager-jobs/',
+    'release manager':          '/jobslobby/executive-position/development-manager-jobs/',
+    'professional services manager': '/jobslobby/executive-position/development-manager-jobs/',
+}
+
+def _gotfriends_scrape_url(url, role):
+    base = 'https://www.gotfriends.co.il'
+    try:
+        html = pw_get_html(base + url, wait_selector='a[class^="position"]', wait_ms=4000)
+    except Exception as e:
+        print(f'  [GotFriends] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    jobs = []
+    for card in soup.select('a[class^="position"]'):
+        href = card.get('href', '')
+        if not href:
+            continue
+        num_el = card.select_one('.career_num')
+        num_text = num_el.get_text(strip=True) if num_el else ''
+        title = card.get_text(strip=True).replace(num_text, '').strip()
+        if len(title) < 4:
+            continue
+        jobs.append({
+            'title': title[:120],
+            'company': 'GotFriends',
+            'date': '',
+            'url': base + href if not href.startswith('http') else href,
+            'source': 'GotFriends',
+            'location': 'Israel',
+        })
+    seen, unique = set(), []
+    for j in jobs:
+        if j['url'] not in seen:
+            seen.add(j['url'])
+            unique.append(j)
+    return unique[:50]
+
 def search_gotfriends(role, time_filter='20h'):
-    url = f'https://www.gotfriends.co.il/jobs/?q={quote(role)}'
-    return pw_scrape(
-        url=url, source='GotFriends', base_url='https://www.gotfriends.co.il',
-        selectors=['.job-item', '.position-item', '[class*="job-card"]', 'li[class*="job"]'],
-        title_sel='h2, h3, h4, [class*="title"]',
-        link_sel='a',
-        company_sel='[class*="company"]',
-        wait_sel='.job-item, .position-item',
-    )
+    if not PLAYWRIGHT_OK:
+        return []
+    path = GOTFRIENDS_ROLE_URLS.get(role.lower())
+    if not path:
+        return []
+    return _gotfriends_scrape_url(path, role)
 
 
 # ── Experis ───────────────────────────────────────────────────────────────────
 def search_experis(role, time_filter='20h'):
-    url = f'https://www.experis.co.il/jobs?q={quote(role)}'
-    return pw_scrape(
-        url=url, source='Experis', base_url='https://www.experis.co.il',
-        selectors=['[class*="job-card"]', '[class*="position"]', 'article', '.job'],
-        title_sel='h2, h3, h4, [class*="title"]',
-        link_sel='a',
-        wait_sel='[class*="job-card"], [class*="position"]',
-    )
+    if not PLAYWRIGHT_OK:
+        return []
+    url = f'https://experis.co.il/search?q={quote(role)}'
+    try:
+        html = pw_get_html(url, wait_selector='div[class*="content"][class*="p-6"]', wait_ms=4000)
+    except Exception as e:
+        print(f'  [Experis] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    jobs = []
+    for a in soup.select('a[href*="/job/"]'):
+        title = a.get_text(strip=True)
+        if len(title) < 4 or title in ('עוד פרטים',):
+            continue
+        href = a.get('href', '')
+        if not href.startswith('http'):
+            href = 'https://experis.co.il' + href
+        jobs.append({
+            'title': title[:120], 'company': 'Experis', 'date': '',
+            'url': href, 'source': 'Experis', 'location': 'Israel',
+        })
+    seen, unique = set(), []
+    for j in jobs:
+        if j['url'] not in seen:
+            seen.add(j['url'])
+            unique.append(j)
+    return unique[:50]
 
 
 # ── Dialog ────────────────────────────────────────────────────────────────────
+_DIALOG_CACHE = {}   # {url: (ts, jobs)}
+
 def search_dialog(role, time_filter='20h'):
+    if not PLAYWRIGHT_OK:
+        return []
+    import json as _json
     role_lower = role.lower()
     if any(k in role_lower for k in ['qa', 'quality', 'test']):
         url = 'https://www.dialog.co.il/high-tech/jobs/qa'
-    elif any(k in role_lower for k in ['program', 'project', 'release', 'delivery']):
+    elif any(k in role_lower for k in ['program', 'project', 'release', 'delivery', 'pmo']):
         url = 'https://www.dialog.co.il/high-tech/jobs/project-management'
     else:
         url = 'https://www.dialog.co.il/high-tech/jobs'
+    cached = _DIALOG_CACHE.get(url)
+    if cached and time.time() - cached[0] < 300:
+        print(f'  [Dialog] cached result ({len(cached[1])} jobs)')
+        return cached[1]
+    try:
+        html = pw_get_html(url, wait_selector='div.item_job', wait_ms=5000)
+    except Exception as e:
+        print(f'  [Dialog] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
 
-    return pw_scrape(
-        url=url, source='Dialog', base_url='https://www.dialog.co.il',
-        selectors=['article.type-job', '.wpjb-loop-row', '.job-listing', 'article'],
-        title_sel='h2, h3, .wpjb-col-title, [class*="title"]',
-        link_sel='a[href*="dialog.co.il"]',
-        date_sel='time, [class*="date"]',
-        wait_sel='article',
-    )
+    # JSON-LD contains structured data for the first 20 jobs
+    for s in soup.find_all('script', type='application/ld+json'):
+        try:
+            data = _json.loads(s.string)
+            if data.get('@type') == 'ItemList':
+                jobs = []
+                for item in data.get('itemListElement', []):
+                    job = item.get('item', {})
+                    title = job.get('title', '').strip()
+                    job_url = job.get('url', '')
+                    if title and job_url:
+                        jobs.append({
+                            'title': title[:120], 'company': 'Dialog', 'date': '',
+                            'url': job_url, 'source': 'Dialog', 'location': 'Israel',
+                        })
+                if jobs:
+                    return jobs[:50]
+        except Exception:
+            pass
+
+    # Fallback: scrape div.item_job cards
+    base = 'https://www.dialog.co.il'
+    jobs = []
+    for card in soup.select('div.item_job'):
+        link = card.select_one('a[href*="positionId"]')
+        if not link:
+            continue
+        href = link.get('href', '')
+        if href and not href.startswith('http'):
+            href = base + href
+        title = link.get_text(strip=True)
+        if len(title) < 4:
+            continue
+        jobs.append({
+            'title': title[:120], 'company': 'Dialog', 'date': '',
+            'url': href, 'source': 'Dialog', 'location': 'Israel',
+        })
+    seen, unique = set(), []
+    for j in jobs:
+        if j['url'] not in seen:
+            seen.add(j['url'])
+            unique.append(j)
+    result = unique[:50]
+    _DIALOG_CACHE[url] = (time.time(), result)
+    return result
 
 
 # ── SQLink ────────────────────────────────────────────────────────────────────
@@ -271,11 +515,11 @@ def search_sqlink(role, time_filter='20h'):
 
 # ── Nisha ─────────────────────────────────────────────────────────────────────
 def search_nisha(role, time_filter='20h'):
-    url = f'https://www.nisha.co.il/job_cat/high-tech/?s={quote(role)}'
+    url = f'https://www.nisha.co.il/?s={quote(role)}'
     return pw_scrape(
         url=url, source='Nisha', base_url='https://www.nisha.co.il',
         selectors=['article.type-job', '.job_listings li', '[class*="job"]', 'article'],
-        title_sel='h2, h3, [class*="title"], .job-title',
+        title_sel='h2 a, h3 a, [class*="title"] a, .job-title a, h2, h3',
         link_sel='a[href*="nisha.co.il"]',
         date_sel='time, [class*="date"]',
         wait_sel='article',
@@ -296,7 +540,7 @@ def search_jobmaster(role, time_filter='20h'):
 
 # ── Indeed Israel ─────────────────────────────────────────────────────────────
 def search_indeed(role, time_filter='20h'):
-    fromage = {'20h': '1', 'week': '7', 'month': '30'}.get(time_filter, '1')
+    fromage = {'20h': '1', '36h': '2', '72h': '3', 'week': '7', 'month': '30'}.get(time_filter, '1')
     url = f'https://il.indeed.com/jobs?q={quote(role)}&l=Israel&fromage={fromage}&sort=date'
     try:
         r = requests.get(url, headers=HEADERS, timeout=20)
@@ -338,52 +582,172 @@ def search_indeed(role, time_filter='20h'):
 
 # ── Malam Team ────────────────────────────────────────────────────────────────
 def search_malamteam(role, time_filter='20h'):
+    if not PLAYWRIGHT_OK:
+        return []
     url = 'https://career.malamteam.com/%D7%A8%D7%A9%D7%99%D7%9E%D7%AA-%D7%9E%D7%A9%D7%A8%D7%95%D7%AA/'
-    return pw_scrape(
-        url=url, source='Malam Team', base_url='https://career.malamteam.com',
-        selectors=['article', '.job-listing', '[class*="job"]', 'li.wpjb-loop-row'],
-        title_sel='h2, h3, [class*="title"], a',
-        link_sel='a[href*="malamteam"]',
-        date_sel='time, [class*="date"]',
-        wait_sel='article, [class*="job"]',
-    )
+    try:
+        html = pw_get_html(url, wait_selector='div.job-item-container', wait_ms=3000)
+    except Exception as e:
+        print(f'  [MalamTeam] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    keywords = [w.lower() for w in role.split() if len(w) > 2]
+    jobs = []
+    for card in soup.select('div.job-item-container'):
+        top = card.select_one('.job-item-top')
+        meta = card.select_one('.job-meta')
+        link = card.select_one('a[href*="malamteam"]')
+        if not top or not link:
+            continue
+        meta_text = meta.get_text(strip=True) if meta else ''
+        title = top.get_text(strip=True).replace(meta_text, '').strip()
+        if len(title) < 4:
+            continue
+        if not any(kw in title.lower() for kw in keywords):
+            continue
+        jobs.append({
+            'title': title[:120],
+            'company': 'Malam Team',
+            'date': '',
+            'url': link.get('href', ''),
+            'source': 'Malam Team',
+            'location': 'Israel',
+        })
+    seen, unique = set(), []
+    for j in jobs:
+        if j['url'] not in seen:
+            seen.add(j['url'])
+            unique.append(j)
+    return unique[:50]
 
 
 # ── Maof ──────────────────────────────────────────────────────────────────────
+_MAOF_QA_KEYWORDS = ['qa', 'בדיקות', 'איכות', 'אוטומציה', 'test', 'quality']
+
 def search_maof(role, time_filter='20h'):
-    url = f'https://www.maof-hr.co.il/%D7%9E%D7%A9%D7%A8%D7%95%D7%AA/?s={quote(role)}'
-    return pw_scrape(
-        url=url, source='Maof', base_url='https://www.maof-hr.co.il',
-        selectors=['article', '.job-listing', '[class*="job"]', '.position'],
-        title_sel='h2, h3, [class*="title"]',
-        link_sel='a[href*="maof-hr.co.il"]',
-        date_sel='time, [class*="date"]',
-        wait_sel='article',
-    )
+    if not PLAYWRIGHT_OK:
+        return []
+    base = 'https://www.maof-hr.co.il'
+    try:
+        html = pw_get_html(f'{base}/%d7%9e%d7%a9%d7%a8%d7%95%d7%aa/', wait_ms=5000)
+    except Exception as e:
+        print(f'  [Maof] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    # Build filter words from role + known QA Hebrew terms
+    role_lower = role.lower()
+    filter_words = [w.lower() for w in role.split() if len(w) > 2]
+    if any(k in role_lower for k in ['qa', 'quality', 'test', 'בדיקות', 'איכות']):
+        filter_words = _MAOF_QA_KEYWORDS
+    jobs, seen = [], set()
+    for a in soup.find_all('a', href=True):
+        href = a.get('href', '')
+        if '/job/' not in href:
+            continue
+        title = a.get_text(strip=True)
+        if not title or len(title) < 4:
+            continue
+        url = href if href.startswith('http') else base + href
+        if url in seen:
+            continue
+        title_l = title.lower()
+        if filter_words and not any(kw in title_l for kw in filter_words):
+            continue
+        seen.add(url)
+        jobs.append({
+            'title': title[:120], 'company': 'מעוף', 'date': '',
+            'url': url, 'source': 'Maof', 'location': 'Israel',
+        })
+    return jobs[:50]
 
 
 # ── Sela ──────────────────────────────────────────────────────────────────────
 def search_sela(role, time_filter='20h'):
-    url = 'https://blog.sela.co.il/Jobs'
-    return pw_scrape(
-        url=url, source='Sela', base_url='https://blog.sela.co.il',
-        selectors=['article', '.job', '[class*="job"]', 'li'],
-        title_sel='h2, h3, [class*="title"], a',
-        link_sel='a[href*="sela"]',
-        wait_sel='article, [class*="job"]',
-    )
+    if not PLAYWRIGHT_OK:
+        return []
+    base = 'https://selacloud.com'
+    try:
+        html = pw_get_html(f'{base}/careers', wait_ms=5000)
+    except Exception as e:
+        print(f'  [Sela] Playwright error: {e}')
+        return []
+    soup = BeautifulSoup(html, 'html.parser')
+    keywords = [w.lower() for w in role.split() if len(w) > 2]
+    jobs, seen = [], set()
+    for a in soup.find_all('a', href=True):
+        href = a.get('href', '')
+        if '/career/' not in href:
+            continue
+        title = a.get_text(strip=True)
+        if not title or len(title) < 4:
+            continue
+        url = href if href.startswith('http') else base + href
+        if url in seen:
+            continue
+        if keywords and not any(kw in title.lower() for kw in keywords):
+            continue
+        seen.add(url)
+        jobs.append({
+            'title': title[:120], 'company': 'Sela', 'date': '',
+            'url': url, 'source': 'Sela', 'location': 'Israel',
+        })
+    return jobs[:50]
 
 
 # ── One1 ──────────────────────────────────────────────────────────────────────
+_ONE1_CATEGORY_IDS = {
+    'qa': 258, 'test': 258, 'automation': 258, 'quality': 258,
+    'project': 12, 'program': 12, 'manager': 258,
+    'devops': 261, 'cloud': 261, 'cyber': 260, 'sap': 259,
+}
+
 def search_one1(role, time_filter='20h'):
-    url = 'https://www.one1.co.il/careers/'
-    return pw_scrape(
-        url=url, source='One1', base_url='https://www.one1.co.il',
-        selectors=['.position', '[class*="job"]', '[class*="career"]', 'article'],
-        title_sel='h2, h3, h4, [class*="title"]',
-        link_sel='a[href*="one1.co.il"]',
-        wait_sel='.position, [class*="job"], article',
-    )
+    if not CURL_CFFI_OK:
+        return []
+    r = role.lower()
+    cat_id = 258  # default: Testing & Automation
+    for key, cid in _ONE1_CATEGORY_IDS.items():
+        if key in r:
+            cat_id = cid
+            break
+    base = 'https://www.one1.co.il'
+    try:
+        post_data = (
+            f'action=oneglobal_search_job_ajax&catid={cat_id}'
+            f'&searchtype=catsearch&career_page_link={quote(base + "/careers/")}'
+        )
+        r_resp = cf_requests.post(
+            f'{base}/wp-admin/admin-ajax.php?lang=he',
+            data=post_data,
+            impersonate='chrome124', timeout=15,
+            headers={
+                'Referer': f'{base}/careers/',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        )
+        html = r_resp.json().get('html', '')
+        soup = BeautifulSoup(html, 'html.parser')
+        jobs, seen = [], set()
+        for item in soup.find_all('div', class_='accordion_item'):
+            job_id = item.get('data-id', '')
+            title_el = item.find('span', class_='job_title')
+            if not job_id or not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            if not title or len(title) < 4:
+                continue
+            url = f'{base}/?p={job_id}'
+            if url in seen:
+                continue
+            seen.add(url)
+            jobs.append({
+                'title': title[:120], 'company': 'One1', 'date': '',
+                'url': url, 'source': 'One1', 'location': 'Israel',
+            })
+        return jobs[:50]
+    except Exception as e:
+        print(f'  [One1] error: {e}')
+        return []
 
 
 # ── Comeet company registry (Wayback Machine CDX export + known Israeli cos) ──
@@ -554,6 +918,8 @@ COMEET_COMPANIES = {
 
 
 # ── Comeet (direct scrape via curl_cffi — bypasses Incapsula) ─────────────────
+_COMEET_CACHE = {}   # {(frozenset(role_specific), time_filter): (ts, jobs)}
+
 def search_comeet(role, time_filter='20h'):
     """Scrape Israeli Comeet company boards directly using curl_cffi TLS impersonation."""
     try:
@@ -565,7 +931,7 @@ def search_comeet(role, time_filter='20h'):
     import re, json, concurrent.futures
     from datetime import datetime, timezone, timedelta
 
-    TIME_DELTAS = {'20h': timedelta(hours=20), 'week': timedelta(days=7), 'month': timedelta(days=30)}
+    TIME_DELTAS = {'20h': timedelta(hours=20), '36h': timedelta(hours=36), '72h': timedelta(hours=72), 'week': timedelta(days=7), 'month': timedelta(days=30)}
     cutoff = datetime.now(timezone.utc) - TIME_DELTAS.get(time_filter, timedelta(hours=20))
 
     # Build a smarter role matcher: strip generic words so "PMO Manager" only
@@ -576,6 +942,12 @@ def search_comeet(role, time_filter='20h'):
     role_specific  = role_words_all - _GENERIC
     if not role_specific:          # e.g. role = "Manager" → fall back to all words
         role_specific = role_words_all
+
+    cache_key = (frozenset(role_specific), time_filter)
+    cached = _COMEET_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < 300:
+        print(f'  [Comeet] cached result ({len(cached[1])} jobs)')
+        return cached[1]
 
     CF_HEADERS = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -674,8 +1046,10 @@ def search_comeet(role, time_filter='20h'):
     finally:
         ex.shutdown(wait=False)   # don't block — let background threads die on their own
 
-    print(f'  [Comeet] direct scrape → {len(jobs)} jobs across {len(items)} boards')
-    return jobs[:50]
+    print(f'  [Comeet] direct scrape -> {len(jobs)} jobs across {len(items)} boards')
+    result = jobs[:50]
+    _COMEET_CACHE[cache_key] = (time.time(), result)
+    return result
 
 
 # ── Google Jobs ───────────────────────────────────────────────────────────────
@@ -746,6 +1120,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({'status': 'ok', 'playwright': PLAYWRIGHT_OK})
             return
 
+        if parsed.path == '/stream':
+            self._handle_stream(parse_qs(parsed.query))
+            return
+
         if parsed.path != '/search':
             self.send_response(404)
             self.end_headers()
@@ -790,14 +1168,14 @@ class Handler(BaseHTTPRequestHandler):
 
         for t in linkedin_threads:
             t.start()
-        li_deadline = time.time() + 15
+        li_deadline = time.time() + 12
         for t in linkedin_threads:
             t.join(timeout=max(0, li_deadline - time.time()))
 
         for t in other_threads:
             t.start()
-        # Global 65-second budget for ALL other sources combined
-        other_deadline = time.time() + 65
+        # 18s budget — stay well under any proxy timeout
+        other_deadline = time.time() + 18
         for t in other_threads:
             t.join(timeout=max(0.1, other_deadline - time.time()))
 
@@ -811,6 +1189,89 @@ class Handler(BaseHTTPRequestHandler):
 
         print(f'  ✓ Total unique: {len(unique)}  Errors: {len(errors)}')
         self._json({'jobs': unique, 'errors': errors})
+
+    def _handle_stream(self, params):
+        roles_raw   = params.get('roles',   ['QA Manager'])[0]
+        time_filter = params.get('time',    ['20h'])[0]
+        sources_raw = params.get('sources', ['linkedin'])[0]
+        roles   = [r.strip() for r in roles_raw.split(',') if r.strip()]
+        sources = [s.strip() for s in sources_raw.split(',') if s.strip()]
+
+        try:
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('X-Accel-Buffering', 'no')
+            self.end_headers()
+        except Exception:
+            return
+
+        write_lock = threading.Lock()
+        seen_urls  = set()
+        alive      = [True]
+
+        def send_event(data):
+            if not alive[0]:
+                return
+            try:
+                payload = 'data: ' + json.dumps(data, ensure_ascii=False) + '\n\n'
+                with write_lock:
+                    self.wfile.write(payload.encode('utf-8'))
+                    self.wfile.flush()
+            except (ConnectionAbortedError, BrokenPipeError, OSError):
+                alive[0] = False
+
+        def run_scraper(source, role):
+            scraper = SCRAPERS.get(source)
+            if not scraper:
+                return
+            try:
+                t0   = time.time()
+                jobs = scraper(role, time_filter)
+                # Generic role-relevance filter for sources known to return noisy results
+                _NOISY_SOURCES = {'experis', 'dialog', 'sqlink', 'malamteam', 'nisha', 'gotfriends', 'jobmaster'}
+                if source in _NOISY_SOURCES:
+                    role_l = role.lower()
+                    if any(k in role_l for k in ['qa', 'quality', 'test', 'automation', 'sqa', 'qc']):
+                        keywords = {'qa', 'quality', 'בדיקות', 'test', 'automation', 'אוטומציה', 'איכות', 'qc', 'sqa'}
+                    elif any(k in role_l for k in ['project', 'program', 'pmo', 'delivery', 'release', 'scrum']):
+                        keywords = {'project', 'program', 'פרויקט', 'pm', 'pmo', 'תוכנית', 'programme',
+                                    'delivery', 'release', 'scrum', 'agile', 'ניהול פרויקט', 'מנהל פרויקט'}
+                    else:
+                        keywords = _drushim_keywords(role)
+                    before = len(jobs)
+                    jobs = [j for j in jobs
+                            if any(kw in (j.get('title','') + ' ' + j.get('company','')).lower()
+                                   for kw in keywords)]
+                    if before != len(jobs):
+                        print(f'  [{source}] filtered {before-len(jobs)} irrelevant jobs')
+                elapsed = round(time.time() - t0, 1)
+                print(f'  [{source}] "{role}" -> {len(jobs)} jobs ({elapsed}s)')
+                if not jobs or not alive[0]:
+                    return
+                with write_lock:
+                    new_jobs = [j for j in jobs if j.get('url') and j['url'] not in seen_urls]
+                    for j in new_jobs:
+                        seen_urls.add(j['url'])
+                if new_jobs:
+                    send_event({'jobs': new_jobs, 'source': source})
+            except Exception as e:
+                print(f'  [{source}] "{role}" ERROR: {e}')
+
+        import concurrent.futures
+        tasks = [(src, role) for src in sources for role in roles]
+        deadline = time.time() + 90
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            futures = [pool.submit(run_scraper, src, role) for src, role in tasks]
+            for f in concurrent.futures.as_completed(futures, timeout=max(1, deadline - time.time())):
+                try:
+                    f.result()
+                except Exception:
+                    pass
+
+        send_event({'done': True})
 
     def _json(self, data):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -840,4 +1301,3 @@ if __name__ == '__main__':
         print('Run: pip install playwright && playwright install chromium')
     print('Press Ctrl+C to stop\n')
     HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
-

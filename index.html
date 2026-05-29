@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -264,6 +264,33 @@
         }
         .filter-toggle input { accent-color: var(--primary); width: 16px; height: 16px; }
 
+        /* Results filter bar */
+        .results-filter-bar {
+            display: flex; gap: 10px; align-items: center;
+            margin-bottom: 16px; flex-wrap: wrap;
+            padding: 10px 14px; background: #f8fafc;
+            border-radius: 10px; border: 1px solid var(--border);
+        }
+        .results-filter-bar input[type="text"] {
+            flex: 1; min-width: 180px;
+            padding: 7px 12px; border-radius: 8px;
+            border: 1.5px solid var(--border); font-size: .88em;
+            color: var(--text); background: white;
+            outline: none; transition: border-color .2s; direction: rtl;
+        }
+        .results-filter-bar input[type="text"]:focus { border-color: var(--primary); }
+        .results-filter-count {
+            font-size: .82em; color: var(--muted); white-space: nowrap;
+        }
+
+        /* Collapsible source groups */
+        .source-group-title { cursor: pointer; user-select: none; }
+        .source-group-title .collapse-arrow {
+            margin-right: auto; font-size: .8em; transition: transform .2s;
+        }
+        .source-group.collapsed .collapse-arrow { transform: rotate(-90deg); }
+        .source-group.collapsed .source-group-body { display: none; }
+
         /* No results */
         .no-results {
             text-align: center; padding: 40px 20px;
@@ -433,11 +460,15 @@
             <div class="filter-section">
                 <h3>⏱️ טווח זמן</h3>
                 <label class="c-item"><input type="radio" name="time" value="20h" checked>
-                    <span>⚡ 20 שעות אחורה</span></label>
+                    <span>⚡ 20 שעות</span></label>
+                <label class="c-item"><input type="radio" name="time" value="36h">
+                    <span>⏱️ 36 שעות</span></label>
+                <label class="c-item"><input type="radio" name="time" value="72h">
+                    <span>🕐 72 שעות</span></label>
                 <label class="c-item"><input type="radio" name="time" value="week">
-                    <span>📅 שבוע אחורה</span></label>
+                    <span>📅 שבוע</span></label>
                 <label class="c-item"><input type="radio" name="time" value="month">
-                    <span>🗓️ חודש אחורה</span></label>
+                    <span>🗓️ חודש</span></label>
             </div>
 
             <div class="filter-section">
@@ -497,6 +528,22 @@
                     הסתר משרות שהוגשו
                 </label>
             </div>
+            <div class="results-filter-bar">
+                <input type="text" id="filterText" placeholder="חפש לפי כותרת / חברה..." oninput="renderJobs()">
+                <input type="text" id="filterRequire" placeholder="חייב להכיל (למשל: מנהל, manager)..." oninput="renderJobs()" style="flex:1;min-width:160px;">
+                <input type="text" id="filterExclude" placeholder="הסתר מילים..." oninput="renderJobs()" style="flex:1;min-width:140px;">
+                <button onclick="resetExclude()" title="איפוס לברירת מחדל" style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:.8em;color:var(--muted);white-space:nowrap;">↺ איפוס</button>
+                <select id="filterScore" onchange="renderJobs()" style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);font-size:.88em;background:white;color:var(--text);cursor:pointer;">
+                    <option value="0">כל הניקודים</option>
+                    <option value="4">4+ בלבד</option>
+                    <option value="7">7+ בלבד</option>
+                </select>
+                <label class="filter-toggle">
+                    <input type="checkbox" id="dedupJobs" onchange="renderJobs()">
+                    הסר כפילויות
+                </label>
+                <span class="results-filter-count" id="filterCount"></span>
+            </div>
             <div id="jobsOutput"></div>
         </div>
     </div>
@@ -541,7 +588,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
-const SERVER = window.location.hostname === 'localhost' ? 'http://localhost:8765' : '/api';
+const SERVER      = window.location.hostname === 'localhost' ? 'http://localhost:8765' : '/api';
+const STREAM_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8765' : 'https://shaul-job-search.fly.dev';
 
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -553,6 +601,10 @@ let cvFiles  = [];   // [{name, text, role, file}]
 let allJobs  = [];
 let _recruiterCache = [];
 let appliedJobs = new Set(JSON.parse(localStorage.getItem('appliedJobs') || '[]'));
+
+const DEFAULT_EXCLUDE = 'בודק, engineer, מהנדס, team lead, hands on, sqa, v&v, junior, algorithm, technician, טכנאי, electronic, אלקטרוניקה, product management, director of product, help desk, helpdesk, תומך, סוקר, מפעיל, מפתח, full stack, back-end, backend, embedded, office manager, customer service, sales manager, אינטגרטור, integrator, specialist, מומחה, manual qa, tester, software tester';
+const FILTER_VERSION = 'v3';
+
 
 // backwards compat: cvText = combined text of all CVs
 Object.defineProperty(window, 'cvText', { get: () => cvFiles.map(c => c.text).join('\n\n') });
@@ -571,6 +623,45 @@ function toggleApplied(url) {
 /* ── Upload ── */
 const zone   = document.getElementById('uploadZone');
 const finput = document.getElementById('fileInput');
+
+const DEFAULT_REQUIRE = 'מנהל, manager, director, head of, ראש, vp, vice president';
+
+/* ── Init filter fields from localStorage (with version reset) ── */
+(function() {
+    if (localStorage.getItem('filterVersion') !== FILTER_VERSION) {
+        localStorage.setItem('filterExclude', DEFAULT_EXCLUDE);
+        localStorage.setItem('filterRequire', DEFAULT_REQUIRE);
+        localStorage.setItem('filterVersion', FILTER_VERSION);
+    }
+    const elExclude = document.getElementById('filterExclude');
+    if (elExclude) elExclude.value = localStorage.getItem('filterExclude') || DEFAULT_EXCLUDE;
+    const elRequire = document.getElementById('filterRequire');
+    if (elRequire) elRequire.value = localStorage.getItem('filterRequire') || DEFAULT_REQUIRE;
+})();
+
+document.getElementById('filterExclude')?.addEventListener('input', function() {
+    localStorage.setItem('filterExclude', this.value);
+});
+document.getElementById('filterRequire')?.addEventListener('input', function() {
+    localStorage.setItem('filterRequire', this.value);
+});
+
+function resetExclude() {
+    const ex = document.getElementById('filterExclude');
+    if (ex) { ex.value = DEFAULT_EXCLUDE; localStorage.setItem('filterExclude', DEFAULT_EXCLUDE); }
+    const rq = document.getElementById('filterRequire');
+    if (rq) { rq.value = DEFAULT_REQUIRE; localStorage.setItem('filterRequire', DEFAULT_REQUIRE); }
+    renderJobs();
+}
+
+(function() {
+    const score = localStorage.getItem('filterScore');
+    const el = document.getElementById('filterScore');
+    if (el && score !== null) el.value = score;
+})();
+document.getElementById('filterScore')?.addEventListener('change', function() {
+    localStorage.setItem('filterScore', this.value);
+});
 
 zone.addEventListener('click',     () => finput.click());
 zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
@@ -683,33 +774,45 @@ async function searchJobs() {
     document.getElementById('jobsWrap').style.display = 'none';
     setLoading(true, `מחפש ${roles.join(' / ')} ב-${sources.length} מקורות...`);
 
-    try {
-        const params = new URLSearchParams({
-            roles:   roles.join(','),
-            time,
-            sources: sources.join(',')
-        });
+    if (window._searchEvt) { window._searchEvt.close(); window._searchEvt = null; }
 
-        const resp = await fetch(`${SERVER}/search?${params}`, {
-            signal: AbortSignal.timeout(120000)
-        });
+    const params = new URLSearchParams({ roles: roles.join(','), time, sources: sources.join(',') });
+    const streamAccum = [];
+    const seenUrls    = new Set();
 
-        if (!resp.ok) throw new Error(`שגיאת שרת: ${resp.status}`);
+    const evt = new EventSource(`${STREAM_BASE}/stream?${params}`);
+    window._searchEvt = evt;
 
-        const data = await resp.json();
-        allJobs = data.jobs || [];
-
-        displayJobs(allJobs, roles);
-        document.getElementById('promptBtn').disabled = false;
-
-    } catch(e) {
-        setLoading(false);
-        if (e.message.includes('fetch') || e.message.includes('NetworkError') || e.name === 'TypeError') {
-            document.getElementById('serverError').classList.add('show');
-        } else {
-            showStatus('err', '❌ ' + e.message);
+    evt.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.done) {
+            evt.close(); window._searchEvt = null;
+            setLoading(false);
+            if (allJobs.length === 0) showStatus('wrn', '⚠️ לא נמצאו משרות');
+            document.getElementById('promptBtn').disabled = false;
+            return;
         }
-    }
+        if (data.jobs && data.jobs.length) {
+            let hasNew = false;
+            for (const job of data.jobs) {
+                if (job.url && !seenUrls.has(job.url)) {
+                    seenUrls.add(job.url);
+                    streamAccum.push(job);
+                    hasNew = true;
+                }
+            }
+            if (hasNew) {
+                setLoading(true, `נמצאו ${streamAccum.length} משרות, ממשיך לחפש...`);
+                displayJobs(streamAccum, roles, true);
+            }
+        }
+    };
+
+    evt.onerror = () => {
+        evt.close(); window._searchEvt = null;
+        setLoading(false);
+        if (allJobs.length === 0) document.getElementById('serverError').classList.add('show');
+    };
 }
 
 /* ── Display jobs ── */
@@ -734,8 +837,8 @@ const SOURCE_COLORS = {
 
 let lastTargetRoles = [];
 
-function displayJobs(jobs, targetRoles) {
-    setLoading(false);
+function displayJobs(jobs, targetRoles, keepSpinner = false) {
+    if (!keepSpinner) setLoading(false);
     lastTargetRoles = targetRoles;
 
     /* Score each job */
@@ -759,17 +862,82 @@ function displayJobs(jobs, targetRoles) {
     showStatus('ok', `✅ נמצאו ${jobs.length} משרות — ${highMatch} עם התאמה גבוהה (7+)`);
 }
 
+const _collapsedGroups = new Set();
+
+function normalizeTitle(t) {
+    return t.toLowerCase().replace(/[^א-תa-z0-9]/g, '').trim();
+}
+
 function renderJobs() {
     _recruiterCache = [];
-    const out        = document.getElementById('jobsOutput');
+    const out         = document.getElementById('jobsOutput');
     const hideApplied = document.getElementById('hideApplied')?.checked;
+    const dedup        = document.getElementById('dedupJobs')?.checked;
+    const filterText   = (document.getElementById('filterText')?.value || '').toLowerCase();
+    const filterRequire= (document.getElementById('filterRequire')?.value || '')
+                            .toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
+    const filterExclude= (document.getElementById('filterExclude')?.value || '')
+                            .toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
+    const minScore     = parseInt(document.getElementById('filterScore')?.value || '0', 10);
     out.innerHTML = '';
 
     const appliedCount = allJobs.filter(j => appliedJobs.has(j.url)).length;
     document.getElementById('totalCount').textContent = allJobs.length;
     document.getElementById('appliedCount').textContent = appliedCount + ' הוגשו';
 
-    const visible = hideApplied ? allJobs.filter(j => !appliedJobs.has(j.url)) : allJobs;
+    let visible = hideApplied ? allJobs.filter(j => !appliedJobs.has(j.url)) : [...allJobs];
+
+    /* Require filter — title must contain at least one of these words */
+    if (filterRequire.length) {
+        visible = visible.filter(j => {
+            const hay = ((j.title || '') + ' ' + (j.company || '')).toLowerCase();
+            return filterRequire.some(word => hay.includes(word));
+        });
+    }
+
+    /* Text filter */
+    if (filterText) {
+        visible = visible.filter(j =>
+            (j.title  || '').toLowerCase().includes(filterText) ||
+            (j.company|| '').toLowerCase().includes(filterText)
+        );
+    }
+
+    /* Exclude filter */
+    if (filterExclude.length) {
+        visible = visible.filter(j => {
+            const hay = ((j.title || '') + ' ' + (j.company || '')).toLowerCase();
+            return !filterExclude.some(word => hay.includes(word));
+        });
+    }
+
+    /* Score filter */
+    if (minScore > 0) {
+        visible = visible.filter(j => (j.score || 0) >= minScore);
+    }
+
+    /* Deduplication: keep highest-score job per normalized title */
+    if (dedup) {
+        const seen = new Map();
+        visible.forEach(j => {
+            const key = normalizeTitle(j.title);
+            const cur = seen.get(key);
+            if (!cur || (j.score || 0) > (cur.score || 0)) seen.set(key, j);
+        });
+        visible = [...seen.values()].sort((a,b) => {
+            const aApp = appliedJobs.has(a.url) ? 1 : 0;
+            const bApp = appliedJobs.has(b.url) ? 1 : 0;
+            if (aApp !== bApp) return aApp - bApp;
+            return (b.score||0) - (a.score||0);
+        });
+    }
+
+    /* Update filter count */
+    const fcEl = document.getElementById('filterCount');
+    if (fcEl) {
+        const hidden = allJobs.length - visible.length;
+        fcEl.textContent = hidden > 0 ? `מוצגות ${visible.length} מתוך ${allJobs.length}` : '';
+    }
 
     if (!visible.length) {
         out.innerHTML = `<div class="no-results">
@@ -780,18 +948,26 @@ function renderJobs() {
         return;
     }
 
-    /* Group by source */
+    /* Group by source (skip grouping when dedup is on — show flat sorted list) */
     const bySource = {};
-    visible.forEach(j => { (bySource[j.source] = bySource[j.source] || []).push(j); });
+    if (dedup) {
+        bySource['כל המשרות'] = visible;
+    } else {
+        visible.forEach(j => { (bySource[j.source] = bySource[j.source] || []).push(j); });
+    }
 
     Object.entries(bySource).forEach(([src, list]) => {
         const sc = SOURCE_COLORS[src] || { color: '#64748b', bg: '#f1f5f9', ico: '🔗' };
+        const isCollapsed = _collapsedGroups.has(src);
         const grp = document.createElement('div');
-        grp.className = 'source-group';
-        grp.innerHTML = `<div class="source-group-title">
-            <span style="background:${sc.bg};color:${sc.color};padding:3px 9px;border-radius:7px;font-size:.84em;">${sc.ico} ${src}</span>
-            <span style="color:var(--muted);font-weight:400;font-size:.82em;">${list.length} משרות</span>
-        </div>`;
+        grp.className = 'source-group' + (isCollapsed ? ' collapsed' : '');
+        grp.innerHTML = `
+            <div class="source-group-title" onclick="toggleGroup('${src}', this.closest('.source-group'))">
+                <span style="background:${sc.bg};color:${sc.color};padding:3px 9px;border-radius:7px;font-size:.84em;">${dedup ? '📋' : sc.ico} ${src}</span>
+                <span style="color:var(--muted);font-weight:400;font-size:.82em;">${list.length} משרות</span>
+                <span class="collapse-arrow">▼</span>
+            </div>
+            <div class="source-group-body"></div>`;
 
         list.forEach(job => {
             const isApplied  = appliedJobs.has(job.url);
@@ -828,11 +1004,17 @@ function renderJobs() {
                            <a href="${urlEsc}" target="_blank" class="apply-btn">הגש מועמדות ↗</a>`
                     }
                 </div>`;
-            grp.appendChild(card);
+            grp.querySelector('.source-group-body').appendChild(card);
         });
 
         out.appendChild(grp);
     });
+}
+
+function toggleGroup(src, el) {
+    if (_collapsedGroups.has(src)) _collapsedGroups.delete(src);
+    else _collapsedGroups.add(src);
+    el.classList.toggle('collapsed', _collapsedGroups.has(src));
 }
 
 /* ── Simple local scoring based on CV text + role keywords ── */
@@ -886,7 +1068,7 @@ function generatePrompt() {
     const hasCv    = cvFiles.length > 0;
     const hasJobs  = allJobs.length > 0;
 
-    const TIME_LABEL = { '20h': '24 השעות האחרונות', week: '7 הימים האחרונים', month: 'החודש האחרון' };
+    const TIME_LABEL = { '20h': '20 השעות האחרונות', '36h': '36 השעות האחרונות', '72h': '72 השעות האחרונות', week: '7 הימים האחרונים', month: 'החודש האחרון' };
 
     document.getElementById('cvWarn').classList.toggle('show', !hasCv);
 
@@ -1042,4 +1224,3 @@ function downloadCv() {
 </script>
 </body>
 </html>
-
