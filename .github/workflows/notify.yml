@@ -33,3 +33,11 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_notify.py
+
+      - name: Publish jobs.html to GitHub Pages
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/jobs.html 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Update jobs.html"
+          git push

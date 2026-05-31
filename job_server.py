@@ -1236,11 +1236,28 @@ def _run_notify_job(status_cb=None):
         t = title.lower()
         if any(kw in t for kw in ['מנהל', 'manager', 'director', 'head of', 'vp', 'vice president']):
             return True
-        if 'ראש' in t and 'צוות' not in t:   # ראש מחלקה/אגף yes, ראש צוות no
+        if 'ראש' in t and 'צוות' not in t:
             return True
         return False
+
+    # Exclude irrelevant job types (hardware/electronics/materials/defense engineering)
+    _BAD_TITLE_KW = [
+        'v&v', 'validation', 'verification',
+        'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
+        'composite', 'חומרים', 'materials',
+        'hardware', 'חומרה', 'מכונות', 'mechanical',
+        'עיצוב', 'design engineer',
+        'business development',
+        'sales', 'מכירות',
+        'procurement', 'רכש',
+    ]
+    def _is_relevant_title(title):
+        t = title.lower()
+        return not any(kw in t for kw in _BAD_TITLE_KW)
+
     before_mgmt = len(new_jobs)
     new_jobs = [j for j in new_jobs if _is_mgmt(j.get('title', '') or '')]
+    new_jobs = [j for j in new_jobs if _is_relevant_title(j.get('title', '') or '')]
 
     # Keep only hi-tech / tech-adjacent companies
     _NONTECH = [
@@ -1276,47 +1293,60 @@ def _run_notify_job(status_cb=None):
     hour = time.strftime('%H:%M')
     date = time.strftime('%Y-%m-%d')
 
-    # Save jobs to daily file so /daily endpoint can serve them
-    _daily_file = '/data/daily.json' if os.path.isdir('/data') else os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), 'daily.json')
-    try:
-        with open(_daily_file, 'w', encoding='utf-8') as f:
-            json.dump({'time': f'{date} {hour}', 'jobs': new_jobs}, f, ensure_ascii=False)
-    except Exception:
-        pass
-
-    # Also POST to cloud server so the /daily page is accessible from iPhone
-    try:
-        import urllib.request as _ur
-        _payload = json.dumps({'time': f'{date} {hour}', 'jobs': new_jobs}, ensure_ascii=False).encode('utf-8')
-        _req = _ur.Request('https://shaul-job-search.fly.dev/daily-update',
-                           data=_payload, headers={'Content-Type': 'application/json'})
-        _ur.urlopen(_req, timeout=10)
-    except Exception:
-        pass
-
-    # Send job details directly in Telegram
-    header = f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n\n'
-    job_lines = []
-    for j in new_jobs[:30]:
-        title   = _esc(j.get('title', '') or '')
-        company = _esc(j.get('company', '') or '')
+    # Generate HTML file for GitHub Pages
+    jobs_html = ''
+    for j in new_jobs:
+        title   = (j.get('title') or '').replace('<', '&lt;').replace('>', '&gt;')
+        company = (j.get('company') or '').replace('<', '&lt;').replace('>', '&gt;')
         url     = j.get('url', '')
-        line = f'• <a href="{url}">{title}</a>\n  {company}\n' if url else f'• {title}\n  {company}\n'
-        job_lines.append(line)
+        source  = (j.get('source') or '').replace('<', '&lt;')
+        jobs_html += f'''
+        <div class="job">
+          <a href="{url}" target="_blank">{title}</a>
+          <div class="company">{company}</div>
+          <div class="source">{source}</div>
+        </div>'''
 
-    # Split into chunks of max 4000 chars
-    chunks, current = [], header
-    for line in job_lines:
-        if len(current) + len(line) + 1 > 4000:
-            chunks.append(current)
-            current = ''
-        current += line + '\n'
-    if current:
-        chunks.append(current)
+    html = f'''<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>משרות חדשות — {date}</title>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: -apple-system, Arial, sans-serif; background: #f0f2f5; padding: 16px; }}
+  h1 {{ font-size: 17px; color: #333; margin-bottom: 14px; padding: 12px 16px;
+        background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }}
+  .job {{ background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+          box-shadow: 0 1px 3px rgba(0,0,0,.1); }}
+  .job a {{ color: #0a7cff; text-decoration: none; font-size: 15px; font-weight: 600;
+             display: block; margin-bottom: 5px; line-height: 1.3; }}
+  .company {{ color: #555; font-size: 13px; margin-bottom: 3px; }}
+  .source {{ color: #aaa; font-size: 11px; }}
+</style>
+</head>
+<body>
+<h1>🔍 {len(new_jobs)} משרות חדשות &nbsp;·&nbsp; {date} {hour}</h1>
+{jobs_html}
+</body>
+</html>'''
 
-    for chunk in chunks:
-        _send_notification(chunk)
+    # Save HTML to docs/jobs.html for GitHub Pages
+    try:
+        os.makedirs('docs', exist_ok=True)
+        with open('docs/jobs.html', 'w', encoding='utf-8') as f:
+            f.write(html)
+        print('[notify] HTML saved to docs/jobs.html')
+    except Exception as e:
+        print(f'[notify] HTML save failed: {e}')
+
+    # Send Telegram: short summary + link
+    pages_url = 'https://shaulmano.github.io/shaul-job-search/jobs.html'
+    _send_notification(
+        f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n\n'
+        f'<a href="{pages_url}">📋 פתח רשימה מלאה</a>'
+    )
 
 
 _load_seen_jobs()   # pre-load at startup
