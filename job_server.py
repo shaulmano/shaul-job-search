@@ -1295,20 +1295,29 @@ def _run_notify_job(status_cb=None):
     except Exception:
         pass
 
-    # ONE clean Telegram message with a link
-    src_summary = ', '.join(
-        f"{s} ({cnt})"
-        for s, cnt in sorted(
-            __import__('collections').Counter(j.get('source','') for j in new_jobs).items(),
-            key=lambda x: -x[1]
-        )[:4]
-    )
-    daily_url = f'https://shaul-job-search.fly.dev/daily'
-    _send_notification(
-        f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n'
-        f'{src_summary}\n\n'
-        f'<a href="{daily_url}">📋 פתח רשימה מלאה ↗</a>'
-    )
+    # Send job details directly in Telegram (no Fly.io dependency)
+    lines = [f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n']
+    for j in new_jobs[:30]:
+        title   = _esc(j.get('title', '') or '')
+        company = _esc(j.get('company', '') or '')
+        url     = j.get('url', '')
+        if url:
+            lines.append(f'• <a href="{url}">{title}</a> — {company}')
+        else:
+            lines.append(f'• {title} — {company}')
+
+    # Split into chunks of max 4096 chars
+    msg, chunks = '', []
+    for line in lines:
+        if len(msg) + len(line) + 1 > 4000:
+            chunks.append(msg)
+            msg = ''
+        msg += line + '\n'
+    if msg:
+        chunks.append(msg)
+
+    for chunk in chunks:
+        _send_notification(chunk)
 
 
 _load_seen_jobs()   # pre-load at startup
