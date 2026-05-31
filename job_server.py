@@ -1295,26 +1295,25 @@ def _run_notify_job(status_cb=None):
     except Exception:
         pass
 
-    # Send job details directly in Telegram (no Fly.io dependency)
-    lines = [f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n']
+    # Send job details directly in Telegram
+    header = f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n\n'
+    job_lines = []
     for j in new_jobs[:30]:
         title   = _esc(j.get('title', '') or '')
         company = _esc(j.get('company', '') or '')
         url     = j.get('url', '')
-        if url:
-            lines.append(f'• <a href="{url}">{title}</a> — {company}')
-        else:
-            lines.append(f'• {title} — {company}')
+        line = f'• <a href="{url}">{title}</a>\n  {company}\n' if url else f'• {title}\n  {company}\n'
+        job_lines.append(line)
 
-    # Split into chunks of max 4096 chars
-    msg, chunks = '', []
-    for line in lines:
-        if len(msg) + len(line) + 1 > 4000:
-            chunks.append(msg)
-            msg = ''
-        msg += line + '\n'
-    if msg:
-        chunks.append(msg)
+    # Split into chunks of max 4000 chars
+    chunks, current = [], header
+    for line in job_lines:
+        if len(current) + len(line) + 1 > 4000:
+            chunks.append(current)
+            current = ''
+        current += line + '\n'
+    if current:
+        chunks.append(current)
 
     for chunk in chunks:
         _send_notification(chunk)
