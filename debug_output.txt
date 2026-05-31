@@ -1,0 +1,59 @@
+=== Drushim ===
+  [class*="result"]: 4
+    זה מה שחיפשת:30 ק"מחיפושאפשרויות סינון:קטגוריה (0)תחוםשנות ניסיוןהיקף משרהללא קורות חיים
+
+=== One1 ===
+URL after click: https://www.one1.co.il/careers/
+  link: https://www.one1.co.il/careers/ | קריירה
+  link: https://one1.global/careers/ | en
+  link: https://api.whatsapp.com/send?text=https%3A%2F%2Fwww.one1.co.il%2Fcare | 
+  link: https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fwww.one1.co | 
+  link: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fwww. | 
+  link: https://api.whatsapp.com/send?text=https%3A%2F%2Fone1.global%2F%3Fshar | 
+  link: https://www.facebook.com/sharer/sharer.php?u=https%3A%2F%2Fone1.global | 
+  link: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fone1 | 
+  link: https://www.one1.co.il/careers/ | קריירה
+  <a class="jobcats"> DATA & BI
+  <a class="jobcats"> SAP
+  <a class="jobcats active"> בדיקות ואוטומציה
+  <a class="jobcats"> כללי ומטה
+  <a class="jobcats"> ניהול פרויקטים / ניהול מוצר
+
+=== Maof jobs page ===
+URL: https://www.maof-hr.co.il/%d7%9e%d7%a9%d7%a8%d7%95%d7%aa/
+  https://www.maof-hr.co.il | דרושיםחיפוש משרותסוכן חכםכתיבת קורות חייםחברות מגייסותמילון משרותאבחון תעסוקתיפר
+  https://www.maof-hr.co.il/ | דרושיםדף הביתדרושים
+  https://www.maof-hr.co.il/ | דרושיםדף הביתדרושים
+  # | במה היית רוצה לעבוד?מציג תוצאות 1 עד 10 מתוך 2,599סנן תוצאותטקסט חופשיתחוםאבטחה,
+  # | סנן תוצאותטקסט חופשיתחוםאבטחה, שמירה וביטחוןאבטחת איכות QAאבטחת מידע וסייבראדמינ
+
+=== AllJobs curl_cffi ===
+  status=200 links=0
+  body: 
+
+AllJobs | ������, ����� �����
+
+
+
+
+
+
+ 
+
+
+
+
+				���� ���, ��� ��� ����� ���� ����.
+				
+				����� ��� ����� ��� ���.
+				
+
+
+
+				    ��� ���� AllJobs
+
+
+
+
+
+

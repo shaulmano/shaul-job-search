@@ -1,0 +1,98 @@
+id=aiBoxTitle2 text=תגידו שלום לתפקיד הבא שלכם
+id=job-box-report-name-8598746 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8598746 text=
+id=full-name-error-msg-8598746 text=מה השם שלך?
+id=job-box-report-name-8666696 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8666696 text=
+id=full-name-error-msg-8666696 text=מה השם שלך?
+id=job-box-report-name-8657860 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8657860 text=
+id=full-name-error-msg-8657860 text=מה השם שלך?
+id=job-box-report-name-8663860 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8663860 text=
+id=full-name-error-msg-8663860 text=מה השם שלך?
+id=job-box-report-name-8665546 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8665546 text=
+id=full-name-error-msg-8665546 text=מה השם שלך?
+id=job-box-report-name-8498662 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8498662 text=
+id=full-name-error-msg-8498662 text=מה השם שלך?
+id=job-box-report-name-8586551 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8586551 text=
+id=full-name-error-msg-8586551 text=מה השם שלך?
+id=job-box-report-name-8652586 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8652586 text=
+id=full-name-error-msg-8652586 text=מה השם שלך?
+id=job-box-report-name-8663271 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8663271 text=
+id=full-name-error-msg-8663271 text=מה השם שלך?
+id=job-box-report-name-8619074 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8619074 text=
+id=full-name-error-msg-8619074 text=מה השם שלך?
+id=job-box-report-name-8654173 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8654173 text=
+id=full-name-error-msg-8654173 text=מה השם שלך?
+id=job-box-report-name-8669634 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8669634 text=
+id=full-name-error-msg-8669634 text=מה השם שלך?
+id=job-box-report-name-8657513 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8657513 text=
+id=full-name-error-msg-8657513 text=מה השם שלך?
+id=job-box-report-name-8612594 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8612594 text=
+id=full-name-error-msg-8612594 text=מה השם שלך?
+id=job-box-report-name-8623764 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8623764 text=
+id=full-name-error-msg-8623764 text=מה השם שלך?
+id=job-box-report-name-8671134 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8671134 text=
+id=full-name-error-msg-8671134 text=מה השם שלך?
+id=job-box-report-name-8670943 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8670943 text=
+id=full-name-error-msg-8670943 text=מה השם שלך?
+id=job-box-report-name-8668012 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8668012 text=
+id=full-name-error-msg-8668012 text=מה השם שלך?
+id=job-box-report-name-8660549 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8660549 text=
+id=full-name-error-msg-8660549 text=מה השם שלך?
+id=job-box-report-name-8659610 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8659610 text=
+id=full-name-error-msg-8659610 text=מה השם שלך?
+id=job-box-report-name-8657391 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8657391 text=
+id=full-name-error-msg-8657391 text=מה השם שלך?
+id=job-box-report-name-8657366 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8657366 text=
+id=full-name-error-msg-8657366 text=מה השם שלך?
+id=job-box-report-name-8656451 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8656451 text=
+id=full-name-error-msg-8656451 text=מה השם שלך?
+id=job-box-report-name-8652904 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8652904 text=
+id=full-name-error-msg-8652904 text=מה השם שלך?
+id=job-box-report-name-8650295 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8650295 text=
+id=full-name-error-msg-8650295 text=מה השם שלך?
+id=job-box-report-name-8643235 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8643235 text=
+id=full-name-error-msg-8643235 text=מה השם שלך?
+id=job-box-report-name-8642279 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8642279 text=
+id=full-name-error-msg-8642279 text=מה השם שלך?
+id=job-box-report-name-8639746 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8639746 text=
+id=full-name-error-msg-8639746 text=מה השם שלך?
+id=job-box-report-name-8639692 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8639692 text=
+id=full-name-error-msg-8639692 text=מה השם שלך?
+id=job-box-report-name-8639116 text=שמך המלא מה השם שלך?
+id=ErrorReportFullName8639116 text=
+id=full-name-error-msg-8639116 text=מה השם שלך?
+
+=== First job box full HTML ===
+  <h2> אחראי /ת אבטחת איכות
+  class_title: <div class="job-box-report-title"> דיווח על תוכן לא הולם או מפלה
+  class_title: <div class="job-box-report-description-title"> תיאור
+  class_title: <div class="job-box-report-thanks-title"> תודה על שיתוף הפעולה
+  class_title: <div class="job-content-top-title-highlight"> אחראי /ת אבטחת איכות Medocann Pharma Ltd

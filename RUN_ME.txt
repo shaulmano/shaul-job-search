@@ -1,0 +1,23 @@
+﻿HOW TO SEND EMAILS
+==================
+
+1. Open PowerShell (Start -> search "PowerShell")
+
+2. Copy and paste this command:
+
+& "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe" "C:\Users\Shaul\Documents\job-search\send_emails.py"
+
+3. For each email:
+   y = Send
+   n = Skip
+   q = Stop
+
+IMPORTANT: Send 10-15 emails per day maximum to avoid spam filters.
+
+FILES IN THIS FOLDER
+====================
+outreach_list.xlsx  - The email list (Status column tracks what was sent)
+companies.xlsx      - Add new companies here, then re-run build_outreach_list.py
+send_emails.py      - The sending script
+build_outreach_list.py - Finds recruiters and emails for new companies
+find_companies.py   - Updates the companies list

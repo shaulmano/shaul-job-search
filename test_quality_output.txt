@@ -1,0 +1,27 @@
+=== AllJobs titles ===
+  title: Medocann היא חברת אגריטק מובילה, המשלבת מצוינות טכנולוגית עם סביבת עבודה איכותית
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8598746
+  title: We are a growing medical device company operating in global markets, committed t
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8666696
+  title: אחריות להובלת תחום האיכות במסגרת יחידה עסקית המובילה מספר פרויקטים גדולים בהיקפי
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8657860
+  title: חברת נדל"ן מובילה, משפחתית וצומחת באזור בני ברק-רמת גן, מחפשת לצרף לשורותיה מנהל
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8663860
+  title: לרכבת ישראל דרוש/ה
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8665546
+  title: **לחברה גלובלית בתחום המכשור הרפואי דרוש/ה Regulatory Affairs Specialist** **מיק
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8498662
+  title: בדיקת וניטור של פעילויות המבוצעות במהלך הייצור, ובמידת הצורך התאמת התהליך כדי לו
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8586551
+  title: מנהל /ת איכות ראשי /ת בפרויקט תשתיות הנדסי רחב היקף של חברה בינלאומית מספר משרה
+  url:   https://www.alljobs.co.il/Search/UploadSingle.aspx?JobID=8652586
+
+=== Nisha titles ===
+  title: Senior Python Engineerפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: תיאור המשרה:
+  title: Senior Full Stack Engineerפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: Senior IT Helpdesk Team Leaderפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: Engineering Managerפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: Senior Back-End Engineer Node.jsפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: Senior Data Engineerפייסבוקמסנג'רלינקדאיןוואטסאפמייל
+  title: מנהל/ת IT/OTפייסבוקמסנג'רלינקדאיןוואטסאפמייל

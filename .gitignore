@@ -1,0 +1,13 @@
+config.py
+*.xlsx
+*.xlsx.bak*
+*.csv
+*.pdf
+applications.json
+daily.json
+seen_jobs.json
+__pycache__/
+*.pyc
+*.png
+*.log
+

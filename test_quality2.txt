@@ -1,0 +1,19 @@
+=== AllJobs titles ===
+  title: אחראי /ת אבטחת איכות
+  title: QA Manager (Medical Devices)
+  title: מנהל.ת איכות
+  title: דרוש /ה מנהל /ת בקרת שיחות ולידים לחברת נדל"ן מובילה - ממוצע שכר 14K-17K!
+  title: מנהל /ת תחום מטה, שירות וטכנולוגיות מידע
+  title: Regulatory Affairs Specialist-היברידי!
+  title: אחראי.ת  אבטחת איכות /  QA Specialist
+  title: מנהל /ת איכות ראשי /ת בפרויקט תשתיות הנדסי רחב היקף של חברה בינלאומית מספר משרה 6574764
+
+=== Nisha titles ===
+  title: Senior Python Engineer
+  title: Senior Full Stack Engineer
+  title: Senior IT Helpdesk Team Leader
+  title: Engineering Manager
+  title: Senior Back-End Engineer Node.js
+  title: Senior Data Engineer
+  title: מנהל/ת IT/OT
+  title: Senior Embedded Engineer

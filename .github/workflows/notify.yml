@@ -1,0 +1,33 @@
+name: Job Search Notify
+
+on:
+  schedule:
+    # Israel time (UTC+3): 7:00, 10:00, 13:00, 17:00, 21:00
+    - cron: '0 4,7,10,14,18 * * *'
+  workflow_dispatch:  # Allow manual trigger from GitHub
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore seen_jobs cache
+        uses: actions/cache@v4
+        with:
+          path: seen_jobs.json
+          key: seen-jobs-${{ github.run_number }}
+          restore-keys: seen-jobs-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 curl_cffi
+
+      - name: Run notify
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python run_notify.py

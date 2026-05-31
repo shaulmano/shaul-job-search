@@ -1,0 +1,20 @@
+Testing all sources for: QA Manager
+
+ERR   linkedin       0 jobs  search_linkedin() missing 1 required positional argument: 't
+EMPTY indeed         0 jobs  
+OK    alljobs       30 jobs  Medocann היא חברת אגריטק מובילה, המשלבת מצוינות טכ
+OK    drushim        8 jobs  מנהל איכות (QA/QC MANAGER) עולם האלקטרוניקה
+OK    gotfriends    10 jobs  QA Group Lead בחברת מחקר בתחום הסייבר ההתקפי
+OK    experis       10 jobs  Mobile QA Engineer [Part-Time]
+OK    dialog        20 jobs  מהנדס.ת בדיקות ותמיכה טכנית
+OK    sqlink        12 jobs  מפתח/ת Splunk עבור ארגון פיננסי באזור המרכז
+OK    nisha          9 jobs  Senior Python Engineerפייסבוקמסנג'רלינקדאיןוואטסאפ
+OK    malamteam     10 jobs  Project Manager and System Analyst
+OK    maof           2 jobs  למפעל הנדסה בקרית שמונה דרוש/ה מבקר/ת איכות
+EMPTY sela           0 jobs  
+OK    one1           1 jobs  בודק/ת תוכנה (NM26382)
+ERR   comeet         0 jobs  'charmap' codec can't encode character '\u2192' in position 
+EMPTY googlejobs     0 jobs  
+EMPTY jobmaster      0 jobs  
+
+Total: 112 jobs

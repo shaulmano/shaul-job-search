@@ -1,0 +1,25 @@
+Role: QA Manager
+  KEEP | Mobile QA Engineer
+  DROP | Senior Data Security Expert
+  DROP | Data Engineer
+  DROP | Full Stack JAVA
+  DROP | Engineering Manager
+  DROP | Senior Python Engineer
+  KEEP | QA Manager
+  KEEP | QA Automation Team Lead
+  DROP | Project Manager
+  DROP | Program Manager
+  KEEP | Head of QA
+
+Role: Project Manager
+  DROP | Mobile QA Engineer
+  DROP | Senior Data Security Expert
+  DROP | Data Engineer
+  DROP | Full Stack JAVA
+  DROP | Engineering Manager
+  DROP | Senior Python Engineer
+  DROP | QA Manager
+  DROP | QA Automation Team Lead
+  KEEP | Project Manager
+  DROP | Program Manager
+  DROP | Head of QA

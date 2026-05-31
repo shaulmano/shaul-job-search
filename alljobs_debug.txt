@@ -1,0 +1,18 @@
+job_id: 8598746
+  id=job-box8598746 tag=div text=דיווח על תוכן לא הולם או מפלה שמך המלא מה השם שלך? מייל תיאו
+  id=job-box-mask8598746 tag=div text=
+  id=job-box-errorreport8598746 tag=div text=דיווח על תוכן לא הולם או מפלה שמך המלא מה השם שלך? מייל תיאו
+  id=job-box-report-name-8598746 tag=div text=שמך המלא מה השם שלך?
+  id=ErrorReportFullName8598746 tag=input text=
+  id=full-name-error-msg-8598746 tag=span text=מה השם שלך?
+  id=job-box-report-email-8598746 tag=div text=מייל
+  id=ErrorReportEmail8598746 tag=input text=
+  id=email-error-msg-8598746 tag=span text=
+  id=job-box-report-radios-8598746 tag=div text=
+  id=job-box-report-radio-error-8598746 tag=div text=
+  id=job-box-report-description-8598746 tag=div text=תיאור
+  id=ErrorReportDesc8598746 tag=textarea text=
+  id=description-error-msg-8598746 tag=span text=
+  id=job-box-report-thanks-8598746 tag=div text=תודה על שיתוף הפעולה מודים לך שלקחת חלק בשיפור התוכן שלנו :)
+title_div text: Medocann היא חברת אגריטק מובילה, המשלבת מצוינות טכנולוגית עם סביבת עבודה איכותית ומכבדת. אנו מחפשים 
+  child: <div> class=[] text=Medocann היא חברת אגריטק מובילה, המשלבת מצוינות טכנולוגית עם

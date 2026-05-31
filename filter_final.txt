@@ -1,0 +1,21 @@
+=== QA Manager after backend filter ===
+keywords: ['qa', 'qc', 'אוטומציה', 'איכות', 'בדיקות']
+
+linkedin       0 (raw 5)
+indeed         0 (raw 0)
+alljobs       21 (raw 30)
+drushim        7 (raw 7)
+gotfriends     9 (raw 10)
+experis        1 (raw 10)
+dialog         5 (raw 20)
+sqlink         2 (raw 12)
+nisha          0 (raw 8)
+malamteam      0 (raw 10)
+maof           2 (raw 2)
+sela           0 (raw 0)
+one1           0 (raw 1)
+comeet         2 (raw 2)
+googlejobs     0 (raw 0)
+jobmaster      0 (raw 0)
+
+TOTAL: 49

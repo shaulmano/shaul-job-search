@@ -1,0 +1,20 @@
+=== QA Manager final filter ===
+
+linkedin       5 jobs  (raw 5)
+indeed         0 jobs  (raw 0)
+alljobs       30 jobs  (raw 30)
+drushim        7 jobs  (raw 7)
+gotfriends     9 jobs  (raw 10) (filtered)
+experis        1 jobs  (raw 10) (filtered)
+dialog         5 jobs  (raw 20) (filtered)
+sqlink         2 jobs  (raw 12) (filtered)
+nisha          0 jobs  (raw 8) (filtered)
+malamteam      0 jobs  (raw 10) (filtered)
+maof           2 jobs  (raw 2)
+sela           0 jobs  (raw 0)
+one1           1 jobs  (raw 1)
+comeet         2 jobs  (raw 2)
+googlejobs     0 jobs  (raw 0)
+jobmaster      0 jobs  (raw 0)
+
+TOTAL: 64

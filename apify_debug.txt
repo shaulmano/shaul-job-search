@@ -1,0 +1,29 @@
+Total items: 5
+
+--- Item 1 ---
+Keys: ['crawl', 'searchResult', 'metadata', 'query', 'markdown', 'html']
+markdown length: 71
+html length: 15436
+markdown preview:
+דרושים בשרון - כפר סבא / רעננה / הוד השרון / רמת השרון / הרצליה / נתניה
+
+--- Item 2 ---
+Keys: ['crawl', 'searchResult', 'metadata', 'text']
+markdown length: 0
+html length: 0
+
+--- Item 3 ---
+Keys: ['crawl', 'searchResult', 'metadata', 'text']
+markdown length: 0
+html length: 0
+
+--- Item 4 ---
+Keys: ['crawl', 'searchResult', 'metadata', 'text']
+markdown length: 0
+html length: 0
+
+--- Item 5 ---
+Keys: ['crawl', 'searchResult', 'metadata', 'text']
+markdown length: 0
+html length: 0
+
