@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>מרכז חיפוש עבודה — שאול מנו</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💼</text></svg>">
     <style>
         :root {
             --primary: #6366f1;
@@ -243,6 +244,20 @@
             font-size: .78em; font-weight: 800;
             padding: 4px 10px; border-radius: 20px; white-space: nowrap;
         }
+        /* Applications panel */
+        .apps-table { width:100%; border-collapse:collapse; font-size:.87em; }
+        .apps-table th { background:#f8fafc; font-weight:700; color:var(--muted); padding:8px 10px; text-align:right; border-bottom:2px solid var(--border); }
+        .apps-table td { padding:9px 10px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+        .apps-table tr:hover td { background:#fafbff; }
+        .status-select { border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:.82em; cursor:pointer; background:white; }
+        .status-נשלח   { background:#eff6ff; color:#2563eb; border-color:#bfdbfe; }
+        .status-ראיון  { background:#f0fdf4; color:#16a34a; border-color:#86efac; }
+        .status-נדחה   { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
+        .status-התקבלתי{ background:#fefce8; color:#ca8a04; border-color:#fde68a; }
+        .apps-empty { text-align:center; color:var(--muted); padding:30px; }
+        .apps-btn { background: #f0fdf4; color:#16a34a; border:1.5px solid #86efac; padding:7px 14px; border-radius:9px; cursor:pointer; font-size:.83em; font-weight:700; transition:all .2s; }
+        .apps-btn:hover { background:#dcfce7; }
+
         .undo-btn {
             background: transparent; color: var(--muted); border: 1px solid var(--border);
             padding: 6px 12px; border-radius: 8px; cursor: pointer;
@@ -501,6 +516,51 @@
     <div class="actions-row">
         <button class="btn btn-primary" id="searchBtn" onclick="searchJobs()">🔍 חפש משרות עכשיו</button>
         <button class="btn btn-outline"  id="promptBtn" onclick="generatePrompt()" disabled>🤖 נתח התאמה עם Claude</button>
+        <a class="btn btn-outline" href="https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22Tel%20Aviv%22%22%20&origin=GLOBAL_SEARCH_HEADER" target="_blank">💼 חיפוש LinkedIn</a>
+    </div>
+
+    <!-- LinkedIn Outreach -->
+    <div class="card" style="margin-bottom:18px;background:#f0f4ff;border:1.5px solid #c7d2fe">
+        <div class="card-title" style="margin-bottom:16px">🤝 LinkedIn Outreach</div>
+
+        <!-- Step 1: City Search -->
+        <div style="margin-bottom:16px">
+            <div style="font-weight:600;font-size:.88em;color:#4f46e5;margin-bottom:8px">1. חיפוש לפי עיר</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                <select id="liCity" style="padding:9px 14px;border:1.5px solid #c7d2fe;border-radius:8px;font-size:.93em;direction:rtl">
+                    <option value="Tel Aviv">תל אביב</option>
+                    <option value="Herzliya">הרצליה</option>
+                    <option value="Holon">חולון</option>
+                    <option value="Givatayim">גבעתיים</option>
+                    <option value="Rosh HaAyin">ראש העין</option>
+                    <option value="Ramat Gan">רמת גן</option>
+                    <option value="Hod HaSharon">הוד השרון</option>
+                    <option value="Petah Tikva">פתח תקווה</option>
+                    <option value="Ra'anana">רעננה</option>
+                    <option value="Rishon LeZion">ראשון לציון</option>
+                    <option value="Netanya">נתניה</option>
+                    <option value="Haifa">חיפה</option>
+                    <option value="Jerusalem">ירושלים</option>
+                    <option value="Rehovot">רחובות</option>
+                    <option value="Beer Sheva">באר שבע</option>
+                </select>
+                <button class="btn btn-primary" onclick="openLiSearch()">🔍 פתח חיפוש LinkedIn</button>
+            </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #e0e7ff;margin-bottom:16px">
+
+        <!-- Step 2: Message Generator -->
+        <div>
+            <div style="font-weight:600;font-size:.88em;color:#4f46e5;margin-bottom:8px">2. הודעת Connect</div>
+            <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+                <input id="liFirstName" type="text" placeholder="שם פרטי של האיש" oninput="updateLiMessage()"
+                    style="padding:9px 14px;border:1.5px solid #c7d2fe;border-radius:8px;font-size:.93em;width:200px;text-align:right">
+            </div>
+            <textarea id="liMessage" readonly rows="4"
+                style="width:100%;padding:12px;border:1.5px solid #c7d2fe;border-radius:8px;font-size:.9em;background:white;resize:none;line-height:1.6;direction:ltr;text-align:left;box-sizing:border-box"></textarea>
+            <button class="btn btn-primary" onclick="copyLiMessage()" id="liCopyBtn" style="margin-top:10px">📋 העתק הודעה</button>
+        </div>
     </div>
 
     <!-- Status & Errors -->
@@ -563,6 +623,18 @@
 
 </div>
 
+<!-- Applications Panel -->
+<div class="card" id="applicationsPanel" style="margin-top:20px">
+    <div class="card-title" style="cursor:pointer;user-select:none" onclick="toggleAppsPanel()">
+        <span>📋 מועמדויות שלי</span>
+        <span id="appsBadge" style="background:#16a34a;color:white;padding:2px 9px;border-radius:12px;font-size:.78em;margin-right:6px"></span>
+        <span id="appsArrow" style="margin-right:auto;color:var(--muted)">▼</span>
+    </div>
+    <div id="appsBody">
+        <div id="applicationsTable"></div>
+    </div>
+</div>
+
 <!-- Recruiter Message Modal -->
 <div class="modal-overlay" id="recruiterModal" onclick="closeModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
@@ -589,7 +661,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 const SERVER      = window.location.hostname === 'localhost' ? 'http://localhost:8765' : '/api';
-const STREAM_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8765' : 'https://shaul-job-search.fly.dev';
+const STREAM_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8765' : 'https://shaul-jobs-api.fly.dev';
 
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -600,7 +672,35 @@ if (typeof pdfjsLib !== 'undefined') {
 let cvFiles  = [];   // [{name, text, role, file}]
 let allJobs  = [];
 let _recruiterCache = [];
-let appliedJobs = new Set(JSON.parse(localStorage.getItem('appliedJobs') || '[]'));
+// appliedJobs: Set of URLs (for fast lookup in renderJobs)
+// _appliedData: url → {id,title,company,source,url,date_applied,status,notes}
+let _appliedData = {};
+let appliedJobs  = new Set();
+let _appliedByTitleCompany = new Set(); // fallback: "title|company" key
+let _jobsMap     = {};  // url → job object (populated during render)
+try {
+    _appliedData = JSON.parse(localStorage.getItem('appliedJobsData') || '{}');
+    appliedJobs  = new Set(Object.keys(_appliedData));
+    // Migrate old plain-URL storage
+    const old = JSON.parse(localStorage.getItem('appliedJobs') || '[]');
+    old.forEach(url => { if (!_appliedData[url]) { _appliedData[url] = {title:url, company:'', source:'', url, date_applied:'', status:'נשלח', notes:''}; appliedJobs.add(url); } });
+} catch(e) {}
+
+function _tcKey(title, company) {
+    return (title || '').toLowerCase().trim() + '|' + (company || '').toLowerCase().trim();
+}
+function rebuildAppliedIndex() {
+    _appliedByTitleCompany.clear();
+    Object.values(_appliedData).forEach(a => {
+        if (a.title) _appliedByTitleCompany.add(_tcKey(a.title, a.company));
+    });
+}
+function isApplied(job) {
+    if (!job) return false;
+    if (job.url && appliedJobs.has(job.url)) return true;
+    return _appliedByTitleCompany.has(_tcKey(job.title, job.company));
+}
+rebuildAppliedIndex();
 
 const DEFAULT_EXCLUDE = 'בודק, engineer, מהנדס, team lead, hands on, sqa, v&v, junior, algorithm, technician, טכנאי, electronic, אלקטרוניקה, product management, director of product, help desk, helpdesk, תומך, סוקר, מפעיל, מפתח, full stack, back-end, backend, embedded, office manager, customer service, sales manager, אינטגרטור, integrator, specialist, מומחה, manual qa, tester, software tester';
 const FILTER_VERSION = 'v3';
@@ -610,15 +710,125 @@ const FILTER_VERSION = 'v3';
 Object.defineProperty(window, 'cvText', { get: () => cvFiles.map(c => c.text).join('\n\n') });
 
 function saveApplied() {
+    localStorage.setItem('appliedJobsData', JSON.stringify(_appliedData));
     localStorage.setItem('appliedJobs', JSON.stringify([...appliedJobs]));
+    rebuildAppliedIndex();
 }
 
 function toggleApplied(url) {
-    if (appliedJobs.has(url)) appliedJobs.delete(url);
-    else appliedJobs.add(url);
+    if (appliedJobs.has(url)) {
+        // Remove
+        const rec = _appliedData[url];
+        if (rec && rec.id) fetch(`${SERVER}/applications/${rec.id}`, {method:'DELETE'}).catch(()=>{});
+        delete _appliedData[url];
+        appliedJobs.delete(url);
+    } else {
+        // Add
+        const job = _jobsMap[url] || {};
+        const rec = {
+            title:        job.title   || url,
+            company:      job.company || '',
+            source:       job.source  || '',
+            url,
+            date_applied: new Date().toISOString().slice(0,10),
+            status:       'נשלח',
+            notes:        '',
+        };
+        _appliedData[url] = rec;
+        appliedJobs.add(url);
+        fetch(`${SERVER}/applications`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(rec),
+        }).then(r=>r.json()).then(saved=>{ if(saved.id){ _appliedData[url].id=saved.id; saveApplied(); } }).catch(()=>{});
+    }
     saveApplied();
     renderJobs();
+    renderAppsPanel();
 }
+
+function updateAppStatus(url, status) {
+    if (!_appliedData[url]) return;
+    _appliedData[url].status = status;
+    saveApplied();
+    const rec = _appliedData[url];
+    if (rec.id) fetch(`${SERVER}/applications/${rec.id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(rec),
+    }).catch(()=>{});
+    renderAppsPanel();
+}
+
+function updateAppNotes(url, notes) {
+    if (!_appliedData[url]) return;
+    _appliedData[url].notes = notes;
+    saveApplied();
+    const rec = _appliedData[url];
+    if (rec.id) fetch(`${SERVER}/applications/${rec.id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(rec),
+    }).catch(()=>{});
+}
+
+let _appsPanelOpen = true;
+function toggleAppsPanel() {
+    _appsPanelOpen = !_appsPanelOpen;
+    document.getElementById('appsBody').style.display   = _appsPanelOpen ? '' : 'none';
+    document.getElementById('appsArrow').textContent    = _appsPanelOpen ? '▲' : '▼';
+}
+
+function renderAppsPanel() {
+    const badge  = document.getElementById('appsBadge');
+    const table  = document.getElementById('applicationsTable');
+    const count  = Object.keys(_appliedData).length;
+    if (badge) badge.textContent = count || '';
+
+    if (!table) return;
+    if (!count) {
+        table.innerHTML = '<div class="apps-empty">אין מועמדויות שמורות עדיין<br><small>לחץ "✅ הגשתי" על משרה כלשהי</small></div>';
+        return;
+    }
+
+    const STATUS_EMOJI = {'נשלח':'📤','ראיון':'📅','נדחה':'❌','התקבלתי':'🎉'};
+    const rows = Object.values(_appliedData).sort((a,b)=>(b.date_applied||'').localeCompare(a.date_applied||''));
+
+    table.innerHTML = `
+    <table class="apps-table">
+      <thead><tr>
+        <th>תפקיד</th><th>חברה</th><th>מקור</th><th>תאריך</th><th>סטטוס</th><th>הערות</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => {
+            const ue   = escHtml(r.url||'');
+            const st   = r.status||'נשלח';
+            const opts = ['נשלח','ראיון','נדחה','התקבלתי'].map(s=>
+                `<option value="${s}" ${s===st?'selected':''}>${STATUS_EMOJI[s]} ${s}</option>`).join('');
+            return `<tr>
+              <td>${r.url ? `<a href="${ue}" target="_blank" style="color:var(--primary);font-weight:600">${escHtml(r.title)}</a>` : escHtml(r.title)}</td>
+              <td>${escHtml(r.company)}</td>
+              <td style="color:var(--muted);font-size:.82em">${escHtml(r.source)}</td>
+              <td style="color:var(--muted);font-size:.82em;white-space:nowrap">${r.date_applied||''}</td>
+              <td><select class="status-select status-${escHtml(st)}" onchange="updateAppStatus('${ue}',this.value);">${opts}</select></td>
+              <td><input type="text" value="${escHtml(r.notes||'')}" placeholder="הערות..." style="border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:.82em;width:130px" onchange="updateAppNotes('${ue}',this.value)"></td>
+              <td><button onclick="toggleApplied('${ue}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1em" title="הסר">🗑️</button></td>
+            </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// Load applications from backend on startup (merge with localStorage)
+fetch(`${SERVER}/applications`).then(r=>r.json()).then(list=>{
+    list.forEach(a => {
+        if (a.url && !_appliedData[a.url]) {
+            _appliedData[a.url] = a;
+            appliedJobs.add(a.url);
+        } else if (a.url && a.id) {
+            _appliedData[a.url].id = a.id;
+        }
+    });
+    saveApplied();
+    renderAppsPanel();
+}).catch(()=>{ renderAppsPanel(); });
 
 /* ── Upload ── */
 const zone   = document.getElementById('uploadZone');
@@ -762,6 +972,21 @@ function setLoading(on, msg = 'מחפש משרות...') {
 }
 
 /* ── Search ── */
+async function _wakeServer() {
+    // Wake the server if it's sleeping (auto-stop). Show progress.
+    const MAX_WAIT = 30000;
+    const start    = Date.now();
+    while (Date.now() - start < MAX_WAIT) {
+        try {
+            const r = await fetch(`${SERVER}/health`, { signal: AbortSignal.timeout(5000) });
+            if (r.ok) return true;
+        } catch(e) {}
+        setLoading(true, `⏳ מעיר שרת... (${Math.round((Date.now()-start)/1000)}s)`);
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    return false;
+}
+
 async function searchJobs() {
     const roles   = getSel('role');
     const time    = getRadio('time');
@@ -772,9 +997,19 @@ async function searchJobs() {
 
     document.getElementById('serverError').classList.remove('show');
     document.getElementById('jobsWrap').style.display = 'none';
-    setLoading(true, `מחפש ${roles.join(' / ')} ב-${sources.length} מקורות...`);
+    setLoading(true, '⏳ מתחבר לשרת...');
 
     if (window._searchEvt) { window._searchEvt.close(); window._searchEvt = null; }
+
+    // Wake server if needed (auto-sleep mode)
+    const alive = await _wakeServer();
+    if (!alive) {
+        setLoading(false);
+        document.getElementById('serverError').classList.add('show');
+        return;
+    }
+
+    setLoading(true, `מחפש ${roles.join(' / ')} ב-${sources.length} מקורות...`);
 
     const params = new URLSearchParams({ roles: roles.join(','), time, sources: sources.join(',') });
     const streamAccum = [];
@@ -846,8 +1081,8 @@ function displayJobs(jobs, targetRoles, keepSpinner = false) {
 
     /* Sort: applied last, then score desc, then date desc */
     allJobs.sort((a, b) => {
-        const aApp = appliedJobs.has(a.url) ? 1 : 0;
-        const bApp = appliedJobs.has(b.url) ? 1 : 0;
+        const aApp = isApplied(a) ? 1 : 0;
+        const bApp = isApplied(b) ? 1 : 0;
         if (aApp !== bApp) return aApp - bApp;
         if (b.score !== a.score) return b.score - a.score;
         return (b.date || '').localeCompare(a.date || '');
@@ -858,7 +1093,7 @@ function displayJobs(jobs, targetRoles, keepSpinner = false) {
     document.getElementById('jobsWrap').style.display = 'block';
     document.getElementById('jobsWrap').scrollIntoView({ behavior: 'smooth' });
 
-    const highMatch = allJobs.filter(j => j.score >= 7 && !appliedJobs.has(j.url)).length;
+    const highMatch = allJobs.filter(j => j.score >= 7 && !isApplied(j)).length;
     showStatus('ok', `✅ נמצאו ${jobs.length} משרות — ${highMatch} עם התאמה גבוהה (7+)`);
 }
 
@@ -881,11 +1116,11 @@ function renderJobs() {
     const minScore     = parseInt(document.getElementById('filterScore')?.value || '0', 10);
     out.innerHTML = '';
 
-    const appliedCount = allJobs.filter(j => appliedJobs.has(j.url)).length;
+    const appliedCount = allJobs.filter(j => isApplied(j)).length;
     document.getElementById('totalCount').textContent = allJobs.length;
     document.getElementById('appliedCount').textContent = appliedCount + ' הוגשו';
 
-    let visible = hideApplied ? allJobs.filter(j => !appliedJobs.has(j.url)) : [...allJobs];
+    let visible = hideApplied ? allJobs.filter(j => !isApplied(j)) : [...allJobs];
 
     /* Require filter — title must contain at least one of these words */
     if (filterRequire.length) {
@@ -925,8 +1160,8 @@ function renderJobs() {
             if (!cur || (j.score || 0) > (cur.score || 0)) seen.set(key, j);
         });
         visible = [...seen.values()].sort((a,b) => {
-            const aApp = appliedJobs.has(a.url) ? 1 : 0;
-            const bApp = appliedJobs.has(b.url) ? 1 : 0;
+            const aApp = isApplied(a) ? 1 : 0;
+            const bApp = isApplied(b) ? 1 : 0;
             if (aApp !== bApp) return aApp - bApp;
             return (b.score||0) - (a.score||0);
         });
@@ -970,8 +1205,9 @@ function renderJobs() {
             <div class="source-group-body"></div>`;
 
         list.forEach(job => {
-            const isApplied  = appliedJobs.has(job.url);
-            const matchClass = isApplied ? '' : job.score >= 7 ? 'match-high' : job.score >= 4 ? 'match-med' : 'match-low';
+            if (job.url) _jobsMap[job.url] = job;
+            const jobApplied = isApplied(job);
+            const matchClass = jobApplied ? '' : job.score >= 7 ? 'match-high' : job.score >= 4 ? 'match-med' : 'match-low';
             const badgeClass = job.score >= 7 ? 'match-high-badge' : job.score >= 4 ? 'match-med-badge' : 'match-none-badge';
             const badgeText  = job.score > 0 ? `${job.score}/10` : '';
             const urlEsc     = escHtml(job.url);
@@ -983,7 +1219,7 @@ function renderJobs() {
             }
 
             const card = document.createElement('div');
-            card.className = `job-card ${matchClass} ${isApplied ? 'applied' : ''}`;
+            card.className = `job-card ${matchClass} ${jobApplied ? 'applied' : ''}`;
             card.innerHTML = `
                 <div class="job-info">
                     <div class="job-title">${escHtml(job.title)}</div>
@@ -992,12 +1228,12 @@ function renderJobs() {
                         ${job.location ? `<span>📍 ${escHtml(job.location)}</span>` : ''}
                         ${job.date     ? `<span>📅 ${escHtml(job.date)}</span>`     : ''}
                         ${recruiterIdx >= 0 ? `<span>👤 <button onclick="openRecruiterModal(${recruiterIdx})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-weight:600;font-size:inherit;padding:0;text-decoration:underline dotted;">${escHtml(job.recruiter_name)}</button></span>` : ''}
-                        ${isApplied    ? `<span style="color:#16a34a;font-weight:700;">✅ הגשתי</span>` : ''}
+                        ${jobApplied   ? `<span style="color:#16a34a;font-weight:700;">✅ הגשתי</span>` : ''}
                     </div>
                 </div>
                 <div class="job-actions">
-                    ${!isApplied && badgeText ? `<span class="match-badge ${badgeClass}">⭐ ${badgeText}</span>` : ''}
-                    ${isApplied
+                    ${!jobApplied && badgeText ? `<span class="match-badge ${badgeClass}">⭐ ${badgeText}</span>` : ''}
+                    ${jobApplied
                         ? `<span class="applied-badge">✅ הוגשה</span>
                            <button class="undo-btn" onclick="toggleApplied('${urlEsc}')">בטל</button>`
                         : `<button class="mark-btn" onclick="toggleApplied('${urlEsc}')">✅ הגשתי</button>
@@ -1221,6 +1457,76 @@ function downloadCv() {
     a.href = url; a.download = cv.name; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ── LinkedIn Outreach ─────────────────────────────────────────────────────
+function openLiSearch() {
+    const city = encodeURIComponent(document.getElementById('liCity').value.trim() || 'Tel Aviv');
+    const url = `https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22${city}%22&origin=GLOBAL_SEARCH_HEADER`;
+    window.open(url, '_blank');
+}
+
+// ── LinkedIn Message Generator ────────────────────────────────────────────
+function liNote(first) {
+    return `Hi ${first},\nI'm Shaul, actively looking for my next role as a Program Manager / QA Leader.\nHappy to send my CV if anything fits.\nLet's connect!`;
+}
+function updateLiMessage() {
+    const first = document.getElementById('liFirstName').value.trim() || 'there';
+    document.getElementById('liMessage').value = liNote(first);
+}
+function copyLiMessage() {
+    const msg = document.getElementById('liMessage').value;
+    if (!msg) return;
+    navigator.clipboard.writeText(msg).then(() => {
+        const btn = document.getElementById('liCopyBtn');
+        btn.textContent = '✓ הועתק!';
+        setTimeout(() => btn.textContent = '📋 העתק הודעה', 2000);
+    }).catch(() => {
+        document.getElementById('liMessage').select();
+        document.execCommand('copy');
+    });
+}
+// init default message
+updateLiMessage();
+
+// ── Bookmarklet setup ──────────────────────────────────────────────────────
+(function() {
+    const code = `(async function(){
+const d=ms=>new Promise(r=>setTimeout(r,ms));
+const note=n=>'Hi '+n+',\\nI\\'m Shaul, actively looking for my next role as a Program Manager / QA Leader.\\nHappy to send my CV if anything fits.\\nLet\\'s connect!';
+let sent=0,skip=0;
+const cards=[...document.querySelectorAll('li.reusable-search__result-container')];
+if(!cards.length){alert('לא נמצאו תוצאות — ודא שאתה בדף חיפוש אנשים בלינקדאין');return;}
+for(const card of cards){
+  const nameEl=card.querySelector('.entity-result__title-text a span[aria-hidden="true"]');
+  if(!nameEl){skip++;continue;}
+  const first=nameEl.textContent.trim().split(' ')[0];
+  const btns=[...card.querySelectorAll('button')];
+  let connectBtn=btns.find(b=>b.querySelector('span')?.textContent.trim()==='Connect');
+  if(!connectBtn){
+    const more=btns.find(b=>b.querySelector('span')?.textContent.trim()==='More');
+    if(more){more.click();await d(800);connectBtn=document.querySelector('.artdeco-dropdown__content li button span')&&[...document.querySelectorAll('.artdeco-dropdown__content li button')].find(b=>b.textContent.includes('Connect'));}
+  }
+  if(!connectBtn){skip++;continue;}
+  connectBtn.click();await d(1500);
+  const modal=()=>document.querySelector('.artdeco-modal__content, .send-invite');
+  const addNote=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Add a note'));
+  if(addNote){addNote.click();await d(900);}
+  const ta=document.querySelector('textarea[name="message"]');
+  if(ta){
+    const s=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
+    s.call(ta,note(first));
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+    await d(400);
+  }
+  const sendBtn=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Send'||b.textContent.trim()==='Send now');
+  if(sendBtn){sendBtn.click();sent++;await d(2000+Math.random()*1000);}
+  else{skip++;}
+}
+alert('✅ סיום!\\nנשלחו: '+sent+'\\nדולגו: '+skip);
+})();`;
+    const el = document.getElementById('bookmarkletLink');
+    if (el) el.href = 'javascript:' + encodeURIComponent(code);
+})();
 </script>
 </body>
 </html>
