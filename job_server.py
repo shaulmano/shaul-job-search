@@ -5,6 +5,7 @@ Uses Playwright (headless Chrome) for JS-rendered Israeli sites.
 Run via start_jobs.bat
 """
 
+import collections
 import json
 import os
 import re
@@ -399,34 +400,70 @@ def search_gotfriends(role, time_filter='20h'):
 
 
 # ── Experis ───────────────────────────────────────────────────────────────────
+_EXPERIS_GQL   = 'https://experiscontent.experis.co.il/graphql'
+_EXPERIS_QUERY = ('query SearchByFilter($where: RootQueryToJobConnectionWhereArgs) {'
+                  '  allJob(where: $where) { nodes { title slug } } }')
+
+
+_EXPERIS_STOPWORDS = {'head', 'of', 'director', 'manager', 'senior', 'vp', 'lead', 'the', 'and'}
+
+
+def _experis_query(term):
+    payload = {
+        'operationName': 'SearchByFilter',
+        'variables': {'where': {
+            'offsetPagination': {'offset': 0, 'size': 50},
+            'search': term,
+            'taxQuery': {'relation': 'AND', 'taxArray': [
+                {'field': 'NAME', 'taxonomy': 'JOBSTATUS', 'terms': 'published'}]},
+        }},
+        'query': _EXPERIS_QUERY,
+    }
+    r = requests.post(_EXPERIS_GQL, json=payload,
+                      headers={'User-Agent': HEADERS['User-Agent']}, timeout=25)
+    r.raise_for_status()
+    data = r.json()
+    if data.get('errors'):
+        raise RuntimeError(str(data['errors'])[:200])
+    return ((data.get('data') or {}).get('allJob') or {}).get('nodes') or []
+
+
 def search_experis(role, time_filter='20h'):
-    if not PLAYWRIGHT_OK:
-        return []
-    url = f'https://experis.co.il/search?q={quote(role)}'
-    try:
-        html = pw_get_html(url, wait_selector='div[class*="content"][class*="p-6"]', wait_ms=4000)
-    except Exception as e:
-        print(f'  [Experis] Playwright error: {e}')
-        return []
-    soup = BeautifulSoup(html, 'html.parser')
-    jobs = []
-    for a in soup.select('a[href*="/job/"]'):
-        title = a.get_text(strip=True)
-        if len(title) < 4 or title in ('עוד פרטים',):
+    """Query Experis' GraphQL backend directly.
+
+    Scraping /search?q=<role> returns the same generic listing for every role —
+    the site's own page never forwards q into the GraphQL `search` variable, so
+    it always asks for "". Calling the endpoint ourselves makes the role count,
+    and skips a Playwright launch that took ~5 minutes under load.
+
+    The backend ANDs every word, so "Head of QA" matches nothing. We also query
+    the role stripped of seniority words ("QA") and merge — that alone takes
+    Head of QA from 0 hits to 13.
+    """
+    terms = [role]
+    reduced = ' '.join(w for w in role.split() if w.lower() not in _EXPERIS_STOPWORDS)
+    if reduced and reduced != role:
+        terms.append(reduced)
+
+    jobs, seen = [], set()
+    for term in terms:
+        try:
+            nodes = _experis_query(term)
+        except Exception as e:
+            print(f'  [Experis] GraphQL error for {term!r}: {e}')
             continue
-        href = a.get('href', '')
-        if not href.startswith('http'):
-            href = 'https://experis.co.il' + href
-        jobs.append({
-            'title': title[:120], 'company': 'Experis', 'date': '',
-            'url': href, 'source': 'Experis', 'location': 'Israel',
-        })
-    seen, unique = set(), []
-    for j in jobs:
-        if j['url'] not in seen:
-            seen.add(j['url'])
-            unique.append(j)
-    return unique[:50]
+        for n in nodes:
+            title = (n.get('title') or '').strip()
+            slug  = (n.get('slug') or '').strip()
+            if len(title) < 4 or not slug or slug in seen:
+                continue
+            seen.add(slug)
+            jobs.append({
+                'title': title[:120], 'company': 'Experis', 'date': '',
+                'url': f'https://experis.co.il/job/{slug}',
+                'source': 'Experis', 'location': 'Israel',
+            })
+    return jobs[:50]
 
 
 # ── Dialog ────────────────────────────────────────────────────────────────────
@@ -566,18 +603,17 @@ def search_indeed(role, time_filter='20h'):
                 'location': loc_el.get_text(strip=True) if loc_el else 'Israel',
             })
         if jobs: return jobs[:50]
-    except Exception:
-        pass
-    # Fallback: Playwright
-    return pw_scrape(
-        url=url, source='Indeed', base_url='https://il.indeed.com',
-        selectors=['[class*="job_seen_beacon"]', '.slider_item', '[data-jk]'],
-        title_sel='h2 a, [class*="jobTitle"] a',
-        link_sel='a[href*="indeed"]',
-        company_sel='[data-testid="company-name"], .companyName',
-        date_sel='[data-testid="myJobsStateDate"], .date',
-        wait_sel='[class*="job_seen_beacon"]',
-    )
+        print('  [Indeed] page parsed but no job cards matched')
+        return []
+    except requests.HTTPError as e:
+        # Indeed fronts il.indeed.com with Cloudflare and answers 403 + CAPTCHA to
+        # anything scripted. Headless Chromium is blocked too and takes ~8 minutes
+        # to find that out, so there is no fallback worth attempting.
+        print(f'  [Indeed] blocked: {e}')
+        return []
+    except Exception as e:
+        print(f'  [Indeed] error: {type(e).__name__}: {e}')
+        return []
 
 
 # ── Malam Team ────────────────────────────────────────────────────────────────
@@ -1107,19 +1143,44 @@ SCRAPERS = {
 
 # ── Scheduled WhatsApp notifications ─────────────────────────────────────────
 SCHEDULED_ROLES = [
-    'Head of QA', 'QA Manager', 'Director of QA',
-    'R&D Program Manager', 'Technical Program Manager', 'Program Manager',
-    'Project Manager', 'PMO Manager', 'Release Manager',
-    'Professional Services Manager',
+    'QA Manager', 'QA Director', 'Head of QA', 'QA Team Leader',
+    'Release Manager', 'Program Manager', 'Project Manager',
 ]
 
+# Whole-scan budget. The workflow allows 25 minutes; leave room for setup,
+# Chromium install and the commit/push that follows.
+_SCAN_BUDGET_SEC = 900
+
+_SOURCE_LABELS = {
+    'linkedin': 'LinkedIn', 'indeed': 'Indeed', 'alljobs': 'AllJobs',
+    'drushim': 'Drushim', 'comeet': 'Comeet', 'gotfriends': 'GotFriends',
+    'experis': 'Experis', 'dialog': 'Dialog', 'sqlink': 'SQLink',
+    'nisha': 'Nisha', 'malamteam': 'MalamTeam', 'maof': 'Maof', 'sela': 'Sela',
+    'one1': 'One1', 'googlejobs': 'GoogleJobs', 'jobmaster': 'Jobmaster',
+}
+
+# Every board answers a query with fuzzy matches — searching "QA Team Leader" on
+# LinkedIn returns "VLSI DFT Team Leader" and "Data Engineering Team Lead". This
+# gate runs on all sources and demands the title actually be about QA, release or
+# program management, which is what SCHEDULED_ROLES asks for.
+_RELEVANT_TITLE_RE = re.compile(
+    r'\b(qa|qc|sqa|quality|test|tester|testing|automation|release|releases|pmo'
+    r'|program\s+manager|programme\s+manager|program\s+management'
+    r'|project\s+manager|project\s+management)\b'
+    r'|בדיקות|בודק|איכות|אוטומציה|שחרור|תוכנית|פרויקט',
+    re.IGNORECASE,
+)
+
+# 'indeed' is deliberately absent: il.indeed.com sits behind Cloudflare and
+# answers 403 + CAPTCHA to every scripted request. It stays in SCRAPERS for
+# manual searches, but on a schedule it only ever contributed latency.
 SCHEDULED_SOURCES = [
-    'linkedin', 'indeed', 'alljobs', 'drushim',
+    'linkedin', 'alljobs', 'drushim',
     'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
-SCHEDULED_SOURCES_FAST = ['linkedin', 'comeet', 'indeed']
+SCHEDULED_SOURCES_FAST = ['linkedin', 'comeet', 'experis']
 
 _seen_jobs_memory: set = set()
 _LOCAL_SEEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'seen_jobs.json')
@@ -1175,22 +1236,93 @@ def _esc(s: str) -> str:
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
-def _run_notify_job(status_cb=None):
+_TG_LIMIT = 4096
+
+
+def _job_line(j) -> str:
+    title   = _esc((j.get('title') or '').strip()) or '(ללא כותרת)'
+    company = _esc((j.get('company') or '').strip())
+    source  = _esc((j.get('source') or '').strip())
+    url     = _esc((j.get('url') or '').strip())
+    line = f'• <a href="{url}">{title}</a>' if url else f'• {title}'
+    meta = ' · '.join(x for x in (company, f'<i>{source}</i>' if source else '') if x)
+    if meta:
+        line += f'\n  {meta}'
+    return line
+
+
+def _send_sectioned(header: str, sections: list, footer: str = ''):
+    """Send headed sections inline, splitting at Telegram's 4096-char limit.
+
+    sections is [(heading, [line, ...])]. The jobs travel inside the message
+    itself so they can never disagree with the count in the header — unlike a
+    link to a page that is published later. When a section spills into another
+    message its heading is repeated, so a split section still reads correctly.
+    """
+    budget = _TG_LIMIT - 300          # room for header, part marker and footer
+    msgs, cur = [], ''
+
+    def flush():
+        nonlocal cur
+        if cur.strip():
+            msgs.append(cur)
+        cur = ''
+
+    for heading, lines in sections:
+        if not lines:
+            continue
+        block = f'<b>{heading}</b>\n\n'
+        if cur and len(cur) + len(block) > budget:
+            flush()
+        cur += block
+        for line in lines:
+            piece = line[:budget] + '\n\n'
+            if len(cur) + len(piece) > budget:
+                flush()
+                cur = f'<b>{heading}</b> (המשך)\n\n'
+            cur += piece
+    flush()
+
+    total = len(msgs) or 1
+    for i, body in enumerate(msgs, 1):
+        part = f' ({i}/{total})' if total > 1 else ''
+        msg  = f'{header}{part}\n\n{body}'
+        if i == total:
+            msg += footer
+        _send_notification(msg)
+
+
+def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope=''):
+    """Scan `sources` and push anything new to Telegram.
+
+    always_notify sends a message even when nothing new turned up — silence is
+    ambiguous on a schedule (no jobs? or scraper broken?).
+    scope labels the run in the message, e.g. ' בלינקדאין'.
+    """
+    sources = sources or SCHEDULED_SOURCES_FAST
+
     def _status(msg):
         print(msg, end='')
         if status_cb:
             status_cb(msg)
-    _status(f'[notify] Starting — {time.strftime("%Y-%m-%d %H:%M")}\n')
+    _status(f'[notify] Starting — {time.strftime("%Y-%m-%d %H:%M")} — sources={",".join(sources)}\n')
     seen  = _load_seen_jobs()
     results = []
     lock    = threading.Lock()
+    # Per-source outcome, so a silent source can be reported as broken/timed-out
+    # rather than looking the same as a source that simply had nothing new.
+    stats = {src: {'raw': 0, 'done': 0, 'errors': []} for src in sources}
 
     def fetch(source, role):
         scraper = SCRAPERS.get(source)
         if not scraper:
+            with lock:
+                stats[source]['done'] += 1
+                stats[source]['errors'].append('scraper not registered')
             return
         try:
             jobs = scraper(role, '20h')
+            raw_n = len(jobs)
             _NOISY = {'experis', 'dialog', 'sqlink', 'malamteam', 'nisha', 'gotfriends', 'jobmaster'}
             if source in _NOISY:
                 role_l = role.lower()
@@ -1203,42 +1335,62 @@ def _run_notify_job(status_cb=None):
                            'professional services', 'services'}
                 else:
                     kws = _drushim_keywords(role)
+                # Deliberately domain-based, not seniority-based: matching on bare
+                # "manager"/"head of" pulled in Head of Engineering and מנהל מוצר,
+                # which are senior but off-target.
                 jobs = [j for j in jobs
                         if any(kw in (j.get('title', '') + ' ' + j.get('company', '')).lower()
                                for kw in kws)]
             with lock:
+                stats[source]['raw'] += raw_n
+                stats[source]['done'] += 1
                 results.extend(jobs)
         except Exception as e:
+            with lock:
+                stats[source]['done'] += 1
+                stats[source]['errors'].append(f'{type(e).__name__}: {e}')
             print(f'  [notify] {source}/{role} error: {e}')
 
     threads = [
         threading.Thread(target=fetch, args=(src, role), daemon=True)
         for role in SCHEDULED_ROLES
-        for src in SCHEDULED_SOURCES_FAST
+        for src in sources
     ]
     for t in threads:
         t.start()
+    # One budget for the whole fan-out rather than 60s per thread: the browser
+    # sources are slow and joining them serially made the real limit unknowable.
+    deadline = time.time() + _SCAN_BUDGET_SEC
     for t in threads:
-        t.join(timeout=60)
+        t.join(timeout=max(0.0, deadline - time.time()))
+
+    with lock:
+        collected = list(results)   # stable snapshot; abandoned threads may still append
+    for src in sources:
+        stats[src]['timed_out'] = len(SCHEDULED_ROLES) - stats[src]['done']
 
     # Deduplicate by URL
     seen_now, all_jobs = set(), []
-    for job in results:
+    for job in collected:
         url = job.get('url', '')
         if url and url not in seen_now:
             seen_now.add(url)
             all_jobs.append(job)
 
     new_jobs = [j for j in all_jobs if j.get('url') and j['url'] not in seen]
+    # Split "already reported" from "rejected by the filters" — from the outside
+    # both look like a silent source, but only the second means the source is
+    # returning things that never match what is being searched for.
+    unseen_by_label = collections.Counter(j.get('source') for j in new_jobs)
 
-    # Keep only management-level jobs (exclude team leads like ראש צוות)
+    # Keep only management-level jobs. Team leads are included — "QA Team Leader"
+    # is one of the roles being searched for.
     def _is_mgmt(title):
         t = title.lower()
-        if any(kw in t for kw in ['מנהל', 'manager', 'director', 'head of', 'vp', 'vice president']):
-            return True
-        if 'ראש' in t and 'צוות' not in t:
-            return True
-        return False
+        return any(kw in t for kw in [
+            'מנהל', 'manager', 'director', 'head of', 'vp', 'vice president',
+            'ראש צוות', 'team lead', 'group leader', 'טים ליד',
+        ]) or ('ראש' in t and 'צוות' not in t)
 
     # Exclude irrelevant job types (hardware/electronics/materials/defense engineering)
     _BAD_TITLE_KW = [
@@ -1258,6 +1410,11 @@ def _run_notify_job(status_cb=None):
     before_mgmt = len(new_jobs)
     new_jobs = [j for j in new_jobs if _is_mgmt(j.get('title', '') or '')]
     new_jobs = [j for j in new_jobs if _is_relevant_title(j.get('title', '') or '')]
+    # On-topic gate: applies to every source, including the ones that are trusted
+    # to honour the search query (LinkedIn, AllJobs, Drushim) but do not.
+    before_topic = len(new_jobs)
+    new_jobs = [j for j in new_jobs if _RELEVANT_TITLE_RE.search(j.get('title', '') or '')]
+    dropped = before_topic - len(new_jobs)
 
     # Keep only hi-tech / tech-adjacent companies
     _NONTECH = [
@@ -1279,28 +1436,77 @@ def _run_notify_job(status_cb=None):
     # Filter out already-applied jobs
     applied_urls = {a['url'] for a in _load_apps() if a.get('url')}
     new_jobs = [j for j in new_jobs if j.get('url') not in applied_urls]
-    print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters')
+    print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters '
+          f'({dropped} dropped as off-topic)')
 
     updated_seen = seen | {j['url'] for j in all_jobs if j.get('url')}
     if len(updated_seen) > 5000:
         updated_seen = set(list(updated_seen)[-4000:])
     _save_seen_jobs(updated_seen)
 
-    if not new_jobs:
-        print('[notify] No new jobs — skipping Telegram')
-        return
-
     hour = time.strftime('%H:%M')
     date = time.strftime('%Y-%m-%d')
 
+    # Why each empty-handed source came back empty. "Nothing new" and "the
+    # scraper crashed" look identical from the outside, so spell out which it was.
+    delivered = collections.Counter(j.get('source') for j in new_jobs)
+    problems = []
+    for src in sources:
+        label = _SOURCE_LABELS.get(src, src)
+        if delivered.get(label):
+            continue
+        st = stats[src]
+        if st['errors']:
+            err = st['errors'][0]
+            extra = f' (ועוד {len(st["errors"]) - 1})' if len(st['errors']) > 1 else ''
+            reason = f'שגיאה — {_esc(err[:90])}{extra}'
+        elif st['timed_out']:
+            reason = f'timeout — {st["timed_out"]}/{len(SCHEDULED_ROLES)} חיפושים לא הסתיימו'
+        elif st['raw'] == 0:
+            reason = 'רץ תקין, 0 תוצאות'
+        elif not unseen_by_label.get(label):
+            reason = f'{st["raw"]} נמצאו, כולן כבר נשלחו בעבר'
+        else:
+            reason = (f'{unseen_by_label[label]} חדשות מתוך {st["raw"]}, '
+                      f'כולן נפסלו כלא רלוונטיות')
+        problems.append(f'• <b>{_esc(label)}</b> — {reason}')
+    if problems:
+        print('[notify] sources with no results:')
+        for p in problems:
+            print(f'    {re.sub("<[^>]+>", "", p)}')
+
+    if not new_jobs:
+        print('[notify] No new jobs')
+        if not always_notify:
+            print('[notify] skipping Telegram')
+            return
+        header = f'🔍 <b>אין משרות חדשות{scope}</b> — {hour}'
+        if problems:
+            _send_sectioned(header, [('⚠️ מקורות ללא תוצאות', problems)])
+        else:
+            _send_notification(header)
+        return
+
+    # LinkedIn is tracked separately from the Israeli boards
+    li_jobs    = [j for j in new_jobs if (j.get('source') or '').lower() == 'linkedin']
+    other_jobs = [j for j in new_jobs if (j.get('source') or '').lower() != 'linkedin']
+    groups = [
+        (f'💼 משרות לינקדאין ({len(li_jobs)})',  li_jobs),
+        (f'📋 כל השאר ({len(other_jobs)})',      other_jobs),
+    ]
+
     # Generate HTML file for GitHub Pages
     jobs_html = ''
-    for j in new_jobs:
-        title   = (j.get('title') or '').replace('<', '&lt;').replace('>', '&gt;')
-        company = (j.get('company') or '').replace('<', '&lt;').replace('>', '&gt;')
-        url     = j.get('url', '')
-        source  = (j.get('source') or '').replace('<', '&lt;')
-        jobs_html += f'''
+    for heading, group in groups:
+        if not group:
+            continue
+        jobs_html += f'\n        <h2>{heading}</h2>'
+        for j in group:
+            title   = (j.get('title') or '').replace('<', '&lt;').replace('>', '&gt;')
+            company = (j.get('company') or '').replace('<', '&lt;').replace('>', '&gt;')
+            url     = j.get('url', '')
+            source  = (j.get('source') or '').replace('<', '&lt;')
+            jobs_html += f'''
         <div class="job">
           <a href="{url}" target="_blank">{title}</a>
           <div class="company">{company}</div>
@@ -1324,6 +1530,7 @@ def _run_notify_job(status_cb=None):
              display: block; margin-bottom: 5px; line-height: 1.3; }}
   .company {{ color: #555; font-size: 13px; margin-bottom: 3px; }}
   .source {{ color: #aaa; font-size: 11px; }}
+  h2 {{ font-size: 14px; color: #444; margin: 18px 4px 8px; }}
 </style>
 </head>
 <body>
@@ -1332,21 +1539,39 @@ def _run_notify_job(status_cb=None):
 </body>
 </html>'''
 
-    # Save HTML to docs/jobs.html for GitHub Pages
+    # Save HTML: a per-run snapshot (so an old message's link keeps showing *its*
+    # jobs) plus jobs.html as the always-latest copy.
+    snapshot = f'jobs-{time.strftime("%Y%m%d-%H%M")}.html'
     try:
         os.makedirs('docs', exist_ok=True)
-        with open('docs/jobs.html', 'w', encoding='utf-8') as f:
-            f.write(html)
-        print('[notify] HTML saved to docs/jobs.html')
+        for name in (snapshot, 'jobs.html'):
+            with open(os.path.join('docs', name), 'w', encoding='utf-8') as f:
+                f.write(html)
+        print(f'[notify] HTML saved to docs/{snapshot} (+ jobs.html)')
+        # A snapshot per run that finds something, hourly, piles up over months.
+        old = sorted(g for g in os.listdir('docs')
+                     if g.startswith('jobs-') and g.endswith('.html'))[:-200]
+        for name in old:
+            os.remove(os.path.join('docs', name))
+        if old:
+            print(f'[notify] pruned {len(old)} old snapshots')
     except Exception as e:
         print(f'[notify] HTML save failed: {e}')
 
-    # Send Telegram: short summary + link
-    pages_url = 'https://shaulmano.github.io/shaul-job-search/jobs.html'
-    _send_notification(
-        f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n\n'
-        f'<a href="{pages_url}">📋 פתח רשימה מלאה</a>'
-    )
+    # Send Telegram: the jobs themselves, inline. The header count and the list
+    # come from the same new_jobs, so they can never disagree.
+    sections = [(heading, [_job_line(j) for j in group]) for heading, group in groups]
+    if problems:
+        sections.append(('⚠️ מקורות ללא תוצאות', problems))
+
+    # Link only when this run also publishes the snapshot; locally nothing is
+    # pushed, so a link would just serve the previous run's page.
+    footer = ''
+    if os.getenv('GITHUB_ACTIONS'):
+        pages_url = f'https://shaulmano.github.io/shaul-job-search/{snapshot}'
+        footer = f'\n<a href="{pages_url}">📋 פתח כדף</a>'
+
+    _send_sectioned(f'🔍 <b>{len(new_jobs)} משרות חדשות{scope}</b> — {hour}', sections, footer)
 
 
 _load_seen_jobs()   # pre-load at startup

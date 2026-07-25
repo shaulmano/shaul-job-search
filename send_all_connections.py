@@ -8,8 +8,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-DAILY_LIMIT  = 20
-SOURCE_FILE  = r"C:\Users\Shaul\Desktop\linkedin\pending_to_review.csv"
+DAILY_LIMIT  = 15
+SOURCE_FILE  = r"C:\Users\Shaul\Desktop\linkedin\hr_leaders.csv"
 
 MESSAGE = """\
 Hi {first},
@@ -46,6 +46,13 @@ def sent_today(rows):
     return sum(1 for r in rows if r.get('status') == 'sent' and r.get('dateSent') == today)
 
 def connect_browser():
+    import glob
+    for f in glob.glob(r"C:\ChromeBot\Singleton*"):
+        try:
+            os.remove(f)
+        except Exception:
+            pass
+
     options = webdriver.ChromeOptions()
     options.add_argument("--user-data-dir=C:\\ChromeBot")
     options.add_argument("--window-position=-32000,0")

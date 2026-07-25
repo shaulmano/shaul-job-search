@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>מרכז חיפוש עבודה — שאול מנו</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
     <style>
         :root {
             --primary: #6366f1;
@@ -395,11 +396,126 @@
             border: 1px solid var(--border); line-height: 1.7;
         }
 
+        /* Auto-Apply modal */
+        #autoApplyModal { direction: rtl; text-align: right; max-width: 600px; }
+        .aa-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .aa-title  { font-size: 1.1em; font-weight: 800; color: var(--primary); }
+        .aa-progress-list { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .aa-job-row {
+            display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            border-radius: 8px; background: #f8fafc; border: 1px solid var(--border);
+            font-size: .85em;
+        }
+        .aa-job-row .aa-status { font-size: 1.1em; flex-shrink: 0; }
+        .aa-job-row .aa-info   { flex: 1; min-width: 0; }
+        .aa-job-row .aa-name   { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .aa-job-row .aa-co     { color: var(--muted); font-size: .82em; }
+        .aa-job-row.applied    { background: #f0fdf4; border-color: #86efac; }
+        .aa-job-row.manual     { background: #fffbeb; border-color: #fcd34d; }
+        .aa-job-row.error      { background: #fef2f2; border-color: #fca5a5; }
+        .aa-job-row.processing { background: #eef2ff; border-color: #a5b4fc; }
+        .aa-summary { padding: 10px 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); font-size: .85em; margin-bottom: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+        .aa-sum-item { display: flex; align-items: center; gap: 5px; font-weight: 600; }
+        .btn-aa { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: .84em; font-weight: 700; white-space: nowrap; }
+        .btn-aa:hover { opacity: .88; }
+        .btn-aa:disabled { opacity: .5; cursor: default; }
+
         @media (max-width: 760px) {
             .filters-grid { grid-template-columns: 1fr; }
             .actions-row  { flex-direction: column; }
             .job-card     { flex-direction: column; align-items: flex-start; }
         }
+
+        /* ── Trevo redesign ── */
+        .tab-bar {
+            display: flex; gap: 0; margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+        }
+        .tab-item {
+            padding: 10px 20px; border: none; background: transparent;
+            font-size: .88em; font-weight: 600; color: var(--muted);
+            cursor: pointer; white-space: nowrap; transition: all .2s;
+            display: flex; align-items: center; gap: 8px;
+            border-bottom: 3px solid transparent; margin-bottom: -2px;
+        }
+        .tab-item:hover { color: var(--text); }
+        .tab-item.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .tab-count {
+            font-size: .74em; padding: 2px 7px; border-radius: 10px;
+            background: #e2e8f0; color: var(--muted); font-weight: 700;
+        }
+        .tab-item.active .tab-count { background: #eef2ff; color: var(--primary); }
+
+        .stats-bar {
+            display: flex; align-items: flex-end; gap: 14px;
+            padding-bottom: 16px; margin-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .stats-scored { font-size: 3.2em; font-weight: 900; color: var(--text); line-height: 1; }
+        .stats-label  { font-size: .76em; color: var(--muted); margin-bottom: 4px; }
+        .stats-from   { font-size: .92em; color: var(--muted); margin-bottom: 6px; }
+
+        .trevo-card {
+            display: flex; direction: ltr;
+            padding: 20px 4px; border-bottom: 1px solid var(--border);
+            gap: 18px; transition: all .15s; align-items: flex-start;
+        }
+        .trevo-card:hover { background: #fafbff; border-radius: 10px; padding: 20px 14px; margin: 0 -10px; }
+        .trevo-card.applied { opacity: .8; background: #f0fdf4; border-radius: 8px; padding: 20px 14px; margin: 0 -10px; }
+
+        .trevo-score-col {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 7px; flex-shrink: 0; width: 76px;
+        }
+        .trevo-circle {
+            width: 62px; height: 62px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.05em; font-weight: 900; letter-spacing: -.5px;
+        }
+        .trevo-circle.high { background: #dcfce7; color: #15803d; }
+        .trevo-circle.med  { background: #fef9c3; color: #a16207; }
+        .trevo-circle.low  { background: #f1f5f9; color: #94a3b8; }
+
+        .trevo-score-label { font-size: .67em; font-weight: 700; text-align: center; line-height: 1.3; }
+        .trevo-score-label.high { color: #15803d; }
+        .trevo-score-label.med  { color: #a16207; }
+        .trevo-score-label.low  { color: #94a3b8; }
+
+        .trevo-open-btn {
+            width: 100%; background: #16a34a; color: white; border: none;
+            padding: 7px 0; border-radius: 8px; cursor: pointer;
+            font-size: .78em; font-weight: 700; text-align: center;
+            transition: background .2s; text-decoration: none; display: block;
+        }
+        .trevo-open-btn:hover { background: #15803d; }
+        .trevo-date { font-size: .67em; color: #94a3b8; text-align: center; }
+
+        .trevo-job-col { flex: 1; min-width: 0; direction: rtl; }
+        .trevo-num { font-size: .72em; color: #94a3b8; font-weight: 700; letter-spacing: .5px; margin-bottom: 3px; }
+        .trevo-company {
+            font-size: .72em; color: var(--muted); font-weight: 600;
+            text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; direction: ltr;
+        }
+        .trevo-title {
+            font-size: 1.12em; font-weight: 800; color: var(--text);
+            margin-bottom: 10px; direction: ltr; line-height: 1.3;
+            text-decoration: none; display: block; cursor: pointer;
+        }
+        .trevo-title:hover { text-decoration: underline; }
+        .trevo-title.applied-title { text-decoration: line-through; color: var(--muted); }
+
+        .trevo-why { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; direction: rtl; }
+        .trevo-why-label { font-size: .7em; color: var(--muted); font-weight: 600; width: 100%; }
+        .trevo-tag { font-size: .72em; padding: 3px 10px; border-radius: 20px; border: 1px solid; font-weight: 600; }
+        .trevo-tag.kw  { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+        .trevo-tag.loc { background: #f0f9ff; color: #0369a1; border-color: #bae6fd; }
+
+        .trevo-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; direction: rtl; }
+        .trevo-select-wrap { display: flex; align-items: center; gap: 5px; margin-right: auto; }
+        .trevo-select { width: 17px; height: 17px; cursor: pointer; accent-color: #7c3aed; flex-shrink: 0; }
+        .trevo-card.card-selected { outline: 2px solid #a78bfa; background: #f5f3ff !important; border-radius: 8px; }
+        #openSelectedBtn { background: #7c3aed; color: white; border: none; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: .82em; font-weight: 700; display: none; align-items: center; gap: 6px; }
+        #openSelectedBtn.visible { display: inline-flex; }
     </style>
 </head>
 <body>
@@ -431,6 +547,41 @@
         <div class="card-title">⚙️ הגדרות חיפוש</div>
         <div class="filters-grid">
 
+            <!-- Column 1 (right in RTL): time + linkedin free search -->
+            <div style="display:flex;flex-direction:column;gap:14px;">
+                <div class="filter-section">
+                    <h3>⏱️ טווח זמן</h3>
+                    <label class="c-item"><input type="radio" name="time" value="20h" checked>
+                        <span>⚡ 20 שעות</span></label>
+                    <label class="c-item"><input type="radio" name="time" value="36h">
+                        <span>⏱️ 36 שעות</span></label>
+                    <label class="c-item"><input type="radio" name="time" value="72h">
+                        <span>🕐 72 שעות</span></label>
+                    <label class="c-item"><input type="radio" name="time" value="week">
+                        <span>📅 שבוע</span></label>
+                    <label class="c-item"><input type="radio" name="time" value="month">
+                        <span>🗓️ חודש</span></label>
+                </div>
+
+                <!-- LinkedIn Free Search -->
+                <div class="filter-section" style="border:1.5px solid #0077b5;border-radius:8px;padding:7px 10px;background:#f0f8ff;">
+                    <div style="color:#0077b5;font-weight:700;font-size:.78em;margin-bottom:5px;">🔍 LinkedIn חיפוש חופשי</div>
+                    <div style="display:flex;gap:5px;">
+                        <input type="text" id="linkedinFreeQuery"
+                            value="jobs that need test planning and delivery ownership and team leadership"
+                            placeholder='test planning team leadership...'
+                            style="flex:1;padding:5px 8px;border-radius:6px;border:1.5px solid #bae6fd;font-size:.8em;box-sizing:border-box;min-width:0;"
+                            dir="auto"
+                            onkeydown="if(event.key==='Enter') linkedinFreeSearch()">
+                        <button onclick="linkedinFreeSearch()"
+                            style="background:#0077b5;color:white;border:none;padding:5px 10px;border-radius:6px;font-weight:700;cursor:pointer;font-size:.8em;white-space:nowrap;">
+                            🔎 חפש
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Column 2 (middle): sources -->
             <div class="filter-section">
                 <h3>📍 מקורות</h3>
 
@@ -471,40 +622,61 @@
                     <span>One1 <span class="badge b-agency">השמה</span></span></label>
             </div>
 
-            <div class="filter-section">
-                <h3>⏱️ טווח זמן</h3>
-                <label class="c-item"><input type="radio" name="time" value="20h" checked>
-                    <span>⚡ 20 שעות</span></label>
-                <label class="c-item"><input type="radio" name="time" value="36h">
-                    <span>⏱️ 36 שעות</span></label>
-                <label class="c-item"><input type="radio" name="time" value="72h">
-                    <span>🕐 72 שעות</span></label>
-                <label class="c-item"><input type="radio" name="time" value="week">
-                    <span>📅 שבוע</span></label>
-                <label class="c-item"><input type="radio" name="time" value="month">
-                    <span>🗓️ חודש</span></label>
-            </div>
-
+            <!-- Column 3 (left in RTL): roles -->
             <div class="filter-section">
                 <h3>💼 תפקידים</h3>
-                <label class="c-item"><input type="checkbox" name="role" value="Head of QA" checked>
-                    <span>Head of QA</span></label>
-                <label class="c-item"><input type="checkbox" name="role" value="QA Manager" checked>
-                    <span>QA Manager</span></label>
+
+                <div style="font-size:.72em;font-weight:700;color:var(--muted);margin:4px 0 6px;text-transform:uppercase;letter-spacing:.4px;">QA &amp; Quality — qa_director_enterprise_saas</div>
+                <label class="c-item"><input type="checkbox" name="role" value="QA Director" checked>
+                    <span>QA Director</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="Director of QA" checked>
                     <span>Director of QA</span></label>
-                <label class="c-item"><input type="checkbox" name="role" value="R&D Program Manager" checked>
-                    <span>R&D Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Director of Quality" checked>
+                    <span>Director of Quality</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="VP QA" checked>
+                    <span>VP QA</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Head of QA" checked>
+                    <span>Head of QA</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="QA Engineering Director" checked>
+                    <span>QA Engineering Director</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="QA Manager" checked>
+                    <span>QA Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="QA Tech Lead" checked>
+                    <span>QA Tech Lead</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="SDET Lead" checked>
+                    <span>SDET Lead</span></label>
+
+                <div style="font-size:.72em;font-weight:700;color:var(--muted);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.4px;">Program &amp; Project — senior_program_manager_rnd</div>
+                <label class="c-item"><input type="checkbox" name="role" value="Senior Program Manager" checked>
+                    <span>Senior Program Manager</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="Technical Program Manager" checked>
                     <span>Technical Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="TPM" checked>
+                    <span>TPM</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Release Program Manager" checked>
+                    <span>Release Program Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Delivery Manager" checked>
+                    <span>Delivery Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="R&D Program Manager" checked>
+                    <span>R&D Program Manager</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="Program Manager" checked>
                     <span>Program Manager</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="Project Manager" checked>
                     <span>Project Manager</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="PMO Manager" checked>
                     <span>PMO Manager</span></label>
+
+                <div style="font-size:.72em;font-weight:700;color:var(--muted);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.4px;">Release &amp; Operations</div>
                 <label class="c-item"><input type="checkbox" name="role" value="Release Manager" checked>
                     <span>Release Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Release Train Engineer" checked>
+                    <span>Release Train Engineer</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Engineering Operations Manager" checked>
+                    <span>Engineering Operations Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="R&D Operations Manager" checked>
+                    <span>R&D Operations Manager</span></label>
+                <label class="c-item"><input type="checkbox" name="role" value="Head of Engineering Operations" checked>
+                    <span>Head of Engineering Operations</span></label>
                 <label class="c-item"><input type="checkbox" name="role" value="Professional Services Manager" checked>
                     <span>Professional Services Manager</span></label>
             </div>
@@ -515,6 +687,15 @@
     <div class="actions-row">
         <button class="btn btn-primary" id="searchBtn" onclick="searchJobs()">🔍 חפש משרות עכשיו</button>
         <button class="btn btn-outline"  id="promptBtn" onclick="generatePrompt()" disabled>🤖 נתח התאמה עם Claude</button>
+        <div style="position:relative;display:inline-block">
+            <button class="btn btn-outline" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">💼 LinkedIn ▾</button>
+            <div style="display:none;position:absolute;top:110%;right:0;background:white;border:1.5px solid #6366f1;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:160px;">
+                <a href="https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22Tel%20Aviv%22%22%20&origin=GLOBAL_SEARCH_HEADER" target="_blank" style="display:block;padding:10px 16px;color:#333;text-decoration:none;font-size:.9em;border-bottom:1px solid #eee">📍 תל אביב</a>
+                <a href="https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20%22QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22Hod%20Hasharon%22&origin=GLOBAL_SEARCH_HEADER" target="_blank" style="display:block;padding:10px 16px;color:#333;text-decoration:none;font-size:.9em;border-bottom:1px solid #eee">📍 הוד השרון</a>
+                <a href="https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20%22QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22Herzliya%22&origin=GLOBAL_SEARCH_HEADER" target="_blank" style="display:block;padding:10px 16px;color:#333;text-decoration:none;font-size:.9em;border-bottom:1px solid #eee">📍 הרצליה</a>
+                <a href="https://www.linkedin.com/search/results/all/?keywords=%22hiring%22%20AND%20%22Program%20Manager%22%20AND%20%22Project%20Manager%22%20AND%20%22QA%20Leader%22%20AND%20%22QA%20Manager%22%20AND%20%22Ramat%20Gan%22&origin=GLOBAL_SEARCH_HEADER" target="_blank" style="display:block;padding:10px 16px;color:#333;text-decoration:none;font-size:.9em">📍 רמת גן</a>
+            </div>
+        </div>
     </div>
 
     <!-- Status & Errors -->
@@ -532,31 +713,77 @@
         <span id="spinnerMsg">מחפש משרות...</span>
     </div>
 
+    <!-- LinkedIn Outreach -->
+    <div class="card" id="linkedinOutreach" style="margin-bottom:18px">
+        <div class="card-title">🤝 LinkedIn Outreach — חיבור + הודעה</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+            <input id="liCity" type="text" placeholder="שם עיר (עברית או אנגלית)" value="תל אביב"
+                style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:.93em;width:200px;text-align:right">
+            <button class="btn btn-primary" onclick="loadLinkedInPeople()" id="liLoadBtn">🔍 טען אנשים</button>
+        </div>
+        <div id="liPeopleList" style="display:none">
+            <div id="liPeopleCards" style="display:flex;flex-direction:column;gap:10px"></div>
+            <div style="margin-top:12px;font-size:.85em;color:#888" id="liStatus"></div>
+        </div>
+    </div>
+
     <!-- Results -->
     <div class="jobs-wrap" id="jobsWrap">
         <div class="card">
-            <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
-                <span>💼 משרות שנמצאו — <span id="totalCount">0</span> (<span id="appliedCount" style="color:var(--green)">0 הוגשו</span>)</span>
-                <label class="filter-toggle">
-                    <input type="checkbox" id="hideApplied" onchange="renderJobs()">
-                    הסתר משרות שהוגשו
-                </label>
+            <!-- Tab bar -->
+            <div class="tab-bar">
+                <button class="tab-item active" id="tab_matches"  onclick="switchTab('matches')">✨ התאמות <span class="tab-count" id="tabMatchesCount">0</span></button>
+                <button class="tab-item"         id="tab_tracking" onclick="switchTab('tracking')">📋 מעקב <span class="tab-count" id="tabTrackingCount">0</span></button>
+                <button class="tab-item"         id="tab_interview" onclick="switchTab('interview')">📅 ראיון <span class="tab-count" id="tabInterviewCount">0</span></button>
             </div>
-            <div class="results-filter-bar">
-                <input type="text" id="filterText" placeholder="חפש לפי כותרת / חברה..." oninput="renderJobs()">
-                <input type="text" id="filterRequire" placeholder="חייב להכיל (למשל: מנהל, manager)..." oninput="renderJobs()" style="flex:1;min-width:160px;">
-                <input type="text" id="filterExclude" placeholder="הסתר מילים..." oninput="renderJobs()" style="flex:1;min-width:140px;">
-                <button onclick="resetExclude()" title="איפוס לברירת מחדל" style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:.8em;color:var(--muted);white-space:nowrap;">↺ איפוס</button>
-                <select id="filterScore" onchange="renderJobs()" style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);font-size:.88em;background:white;color:var(--text);cursor:pointer;">
-                    <option value="0">כל הניקודים</option>
-                    <option value="4">4+ בלבד</option>
-                    <option value="7">7+ בלבד</option>
-                </select>
-                <label class="filter-toggle">
-                    <input type="checkbox" id="dedupJobs" onchange="renderJobs()">
-                    הסר כפילויות
-                </label>
-                <span class="results-filter-count" id="filterCount"></span>
+            <!-- Stats bar (visible after search) -->
+            <div class="stats-bar" id="statsBar" style="display:none">
+                <div>
+                    <div class="stats-scored" id="statsScored">0</div>
+                    <div class="stats-label">// scored</div>
+                </div>
+                <div class="stats-from" id="statsFrom">from 0</div>
+                <div style="flex:1"></div>
+                <div id="statsSearches" style="font-size:.74em;color:var(--muted);text-align:left;direction:ltr;line-height:1.9"></div>
+            </div>
+            <!-- Matches header + filters (hidden in tracking/interview tabs) -->
+            <div id="matchesHeader">
+                <div class="card-title" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                    <span>💼 משרות שנמצאו — <span id="totalCount">0</span> (<span id="appliedCount" style="color:var(--green)">0 הוגשו</span>)</span>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <label class="filter-toggle">
+                            <input type="checkbox" id="hideApplied" onchange="renderJobs()">
+                            הסתר משרות שהוגשו
+                        </label>
+                        <button class="btn-aa" id="autoApplyBtn" onclick="startAutoApply()" title="שלח קורות חיים אוטומטית למשרות עם ניקוד 80%+">🚀 Auto-Apply (80%+)</button>
+                        <button id="selectAllBtn" onclick="selectAll()" title="סמן / בטל סימון לכולם" style="background:#e0e7ff;color:#3730a3;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:.82em;font-weight:700;">☑ סמן הכל</button>
+                        <button id="openSelectedBtn" onclick="openSelected()" title="פתח כל המסומנים בטאבים נפרדים">📂 פתח מסומנים (<span id="selectedCount">0</span>)</button>
+                    </div>
+                </div>
+                <div style="margin-bottom:8px;">
+                    <input type="text" id="freeSearch"
+                        placeholder='חיפוש חופשי — לדוגמא: "test planning delivery team leadership"'
+                        oninput="renderJobs()"
+                        style="width:100%;padding:9px 13px;border-radius:9px;border:1.5px solid #a5b4fc;font-size:.88em;background:#f5f3ff;color:var(--text);box-sizing:border-box;"
+                        dir="auto">
+                    <div id="freeSearchTags" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;min-height:0"></div>
+                </div>
+                <div class="results-filter-bar">
+                    <input type="text" id="filterText" placeholder="חפש לפי כותרת / חברה..." oninput="renderJobs()">
+                    <input type="text" id="filterRequire" placeholder="חייב להכיל (למשל: מנהל, manager)..." oninput="renderJobs()" style="flex:1;min-width:160px;">
+                    <input type="text" id="filterExclude" placeholder="הסתר מילים..." oninput="renderJobs()" style="flex:1;min-width:140px;">
+                    <button onclick="resetExclude()" title="איפוס לברירת מחדל" style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:.8em;color:var(--muted);white-space:nowrap;">↺ איפוס</button>
+                    <select id="filterScore" onchange="renderJobs()" style="padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);font-size:.88em;background:white;color:var(--text);cursor:pointer;">
+                        <option value="0">כל הניקודים</option>
+                        <option value="4">4+ בלבד</option>
+                        <option value="7">7+ בלבד</option>
+                    </select>
+                    <label class="filter-toggle">
+                        <input type="checkbox" id="dedupJobs" onchange="renderJobs()">
+                        הסר כפילויות
+                    </label>
+                    <span class="results-filter-count" id="filterCount"></span>
+                </div>
             </div>
             <div id="jobsOutput"></div>
         </div>
@@ -612,6 +839,22 @@
     </div>
 </div>
 
+<!-- Auto-Apply Modal -->
+<div class="modal-overlay" id="autoApplyModal" onclick="closeAutoApplyModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="aa-header">
+            <div class="aa-title">🚀 Auto-Apply</div>
+            <button class="modal-close" onclick="closeAutoApplyModal()">✕</button>
+        </div>
+        <div class="aa-summary" id="aaSummary" style="display:none"></div>
+        <div class="aa-progress-list" id="aaProgressList"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="btn btn-outline" id="aaOpenManualBtn" onclick="openManualJobs()" style="display:none">🌐 פתח ידניים בטאבים</button>
+            <button class="btn-aa" id="aaCloseBtn" onclick="closeAutoApplyModal()" style="display:none">סגור</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 const SERVER      = window.location.hostname === 'localhost' ? 'http://localhost:8765' : '/api';
@@ -631,16 +874,25 @@ let _recruiterCache = [];
 let _appliedData = {};
 let appliedJobs  = new Set();
 let _jobsMap     = {};  // url → job object (populated during render)
+let _selectedJobs = new Set(); // urls selected for bulk-open
+let _openQueue    = [];        // sequential open queue
+function _normUrl(u) { return (u || '').replace('//il.linkedin.com/', '//www.linkedin.com/'); }
 try {
-    _appliedData = JSON.parse(localStorage.getItem('appliedJobsData') || '{}');
+    const rawApplied = JSON.parse(localStorage.getItem('appliedJobsData') || '{}');
+    // Normalize il.linkedin.com → www.linkedin.com in stored data
+    Object.entries(rawApplied).forEach(([k, v]) => {
+        const nk = _normUrl(k);
+        _appliedData[nk] = { ...v, url: _normUrl(v.url || k) };
+    });
     appliedJobs  = new Set(Object.keys(_appliedData));
     // Migrate old plain-URL storage
     const old = JSON.parse(localStorage.getItem('appliedJobs') || '[]');
-    old.forEach(url => { if (!_appliedData[url]) { _appliedData[url] = {title:url, company:'', source:'', url, date_applied:'', status:'נשלח', notes:''}; appliedJobs.add(url); } });
+    old.forEach(url => { const nu = _normUrl(url); if (!_appliedData[nu]) { _appliedData[nu] = {title:nu, company:'', source:'', url:nu, date_applied:'', status:'נשלח', notes:''}; appliedJobs.add(nu); } });
 } catch(e) {}
 
-const DEFAULT_EXCLUDE = 'בודק, engineer, מהנדס, team lead, hands on, sqa, v&v, junior, algorithm, technician, טכנאי, electronic, אלקטרוניקה, product management, director of product, help desk, helpdesk, תומך, סוקר, מפעיל, מפתח, full stack, back-end, backend, embedded, office manager, customer service, sales manager, אינטגרטור, integrator, specialist, מומחה, manual qa, tester, software tester';
-const FILTER_VERSION = 'v3';
+const DEFAULT_EXCLUDE = 'בודק, software engineer, qa engineer, automation engineer, devops engineer, מהנדס, hands on, v&v, junior, algorithm, technician, טכנאי, electronic, אלקטרוניקה, product management, director of product, help desk, helpdesk, תומך, סוקר, מפעיל, מפתח, full stack, back-end, backend, embedded, office manager, customer service, sales manager, אינטגרטור, integrator, manual qa, tester, software tester';
+const DEFAULT_REQUIRE = '';
+const FILTER_VERSION = 'v10';
 
 
 // backwards compat: cvText = combined text of all CVs
@@ -769,8 +1021,6 @@ fetch(`${SERVER}/applications`).then(r=>r.json()).then(list=>{
 /* ── Upload ── */
 const zone   = document.getElementById('uploadZone');
 const finput = document.getElementById('fileInput');
-
-const DEFAULT_REQUIRE = 'מנהל, manager, director, head of, ראש, vp, vice president';
 
 /* ── Init filter fields from localStorage (with version reset) ── */
 (function() {
@@ -987,8 +1237,16 @@ function displayJobs(jobs, targetRoles, keepSpinner = false) {
     if (!keepSpinner) setLoading(false);
     lastTargetRoles = targetRoles;
 
-    /* Score each job */
-    allJobs = jobs.map(j => ({ ...j, score: scoreJob(j, targetRoles) }));
+    /* Filter out irrelevant job titles, then score */
+    const filteredCount = jobs.filter(isJobDisqualified).length;
+    allJobs = jobs
+        .filter(j => !isJobDisqualified(j))
+        .map(j => {
+            const cleanUrl = _normUrl(j.url);
+            const {score, keywords} = scoreJob({...j, url: cleanUrl}, targetRoles);
+            return { ...j, url: cleanUrl, score, matchKeywords: keywords };
+        });
+    if (filteredCount > 0) console.log(`[filter] סוננו ${filteredCount} משרות לא רלוונטיות (ייצור/בודק IC)`);
 
     /* Sort: applied last, then score desc, then date desc */
     allJobs.sort((a, b) => {
@@ -1006,6 +1264,16 @@ function displayJobs(jobs, targetRoles, keepSpinner = false) {
 
     const highMatch = allJobs.filter(j => j.score >= 7 && !appliedJobs.has(j.url)).length;
     showStatus('ok', `✅ נמצאו ${jobs.length} משרות — ${highMatch} עם התאמה גבוהה (7+)`);
+
+    // Update stats bar
+    const statsBar = document.getElementById('statsBar');
+    if (statsBar) {
+        statsBar.style.display = '';
+        document.getElementById('statsScored').textContent = highMatch;
+        document.getElementById('statsFrom').textContent   = 'from ' + jobs.length;
+    }
+    const el_mc = document.getElementById('tabMatchesCount');
+    if (el_mc) el_mc.textContent = allJobs.length;
 }
 
 const _collapsedGroups = new Set();
@@ -1014,9 +1282,67 @@ function normalizeTitle(t) {
     return t.toLowerCase().replace(/[^א-תa-z0-9]/g, '').trim();
 }
 
+let _activeTab = 'matches';
+
+function switchTab(tab) {
+    _activeTab = tab;
+    ['matches','tracking','interview'].forEach(t => {
+        document.getElementById('tab_' + t)?.classList.toggle('active', t === tab);
+    });
+    const hdr = document.getElementById('matchesHeader');
+    if (hdr) hdr.style.display = tab === 'matches' ? '' : 'none';
+    renderJobs();
+}
+
+function renderAppsInline(container, filterStatus) {
+    const STATUS_EMOJI = {'נשלח':'📤','ראיון':'📅','נדחה':'❌','התקבלתי':'🎉'};
+    let rows = Object.values(_appliedData).sort((a,b)=>(b.date_applied||'').localeCompare(a.date_applied||''));
+    if (filterStatus) rows = rows.filter(r => r.status === filterStatus);
+
+    if (!rows.length) {
+        container.innerHTML = `<div class="no-results"><div class="big">${filterStatus ? '📅' : '📋'}</div>
+            <p>${filterStatus === 'ראיון' ? 'אין ראיונות מתוכננים' : 'אין מועמדויות שמורות עדיין'}</p>
+            <p style="margin-top:8px;font-size:.85em;">סמן "✅ הגשתי" על משרה כדי להוסיפה.</p></div>`;
+        return;
+    }
+
+    container.innerHTML = `<table class="apps-table">
+      <thead><tr><th>תפקיד</th><th>חברה</th><th>מקור</th><th>תאריך</th><th>סטטוס</th><th>הערות</th><th></th></tr></thead>
+      <tbody>${rows.map(r => {
+        const ue = escHtml(r.url||'');
+        const st = r.status||'נשלח';
+        const opts = ['נשלח','ראיון','נדחה','התקבלתי'].map(s=>
+            `<option value="${s}" ${s===st?'selected':''}>${STATUS_EMOJI[s]} ${s}</option>`).join('');
+        return `<tr>
+          <td>${r.url ? `<a href="${ue}" target="_blank" style="color:var(--primary);font-weight:600">${escHtml(r.title)}</a>` : escHtml(r.title)}</td>
+          <td>${escHtml(r.company)}</td>
+          <td style="color:var(--muted);font-size:.82em">${escHtml(r.source)}</td>
+          <td style="color:var(--muted);font-size:.82em;white-space:nowrap">${r.date_applied||''}</td>
+          <td><select class="status-select status-${escHtml(st)}" onchange="updateAppStatus('${ue}',this.value);renderJobs();">${opts}</select></td>
+          <td><input type="text" value="${escHtml(r.notes||'')}" placeholder="הערות..." style="border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:.82em;width:130px" onchange="updateAppNotes('${ue}',this.value)"></td>
+          <td><button onclick="toggleApplied('${ue}')" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1em" title="הסר">🗑️</button></td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+}
+
 function renderJobs() {
     _recruiterCache = [];
     const out         = document.getElementById('jobsOutput');
+
+    // Update tab counts
+    const trackingCount  = Object.keys(_appliedData).length;
+    const interviewCount = Object.values(_appliedData).filter(r => r.status === 'ראיון').length;
+    const el_t = document.getElementById('tabTrackingCount');
+    const el_i = document.getElementById('tabInterviewCount');
+    if (el_t) el_t.textContent = trackingCount;
+    if (el_i) el_i.textContent = interviewCount;
+
+    // Tracking / Interview tabs — show apps table
+    if (_activeTab === 'tracking' || _activeTab === 'interview') {
+        renderAppsInline(out, _activeTab === 'interview' ? 'ראיון' : null);
+        return;
+    }
+
     const hideApplied = document.getElementById('hideApplied')?.checked;
     const dedup        = document.getElementById('dedupJobs')?.checked;
     const filterText   = (document.getElementById('filterText')?.value || '').toLowerCase();
@@ -1025,6 +1351,27 @@ function renderJobs() {
     const filterExclude= (document.getElementById('filterExclude')?.value || '')
                             .toLowerCase().split(',').map(s=>s.trim()).filter(Boolean);
     const minScore     = parseInt(document.getElementById('filterScore')?.value || '0', 10);
+
+    // Free-text search: extract meaningful keywords from natural-language query
+    const _STOP = new Set(['jobs','job','that','need','needs','with','and','or','the','a','an',
+                           'in','of','to','is','are','have','has','for','who','which','where',
+                           'want','require','requires','looking','position','role','roles','find',
+                           'get','i','am','can','do','not','be','my','me']);
+    const freeRaw   = (document.getElementById('freeSearch')?.value || '').toLowerCase();
+    const freeKws   = freeRaw.split(/[\s,;/]+/).map(w => w.replace(/[^a-zא-ת0-9&]/g,'')).filter(w => w.length > 2 && !_STOP.has(w));
+    // Also keep 2-word phrases
+    const freeWords = freeRaw.split(/[\s,;/]+/).filter(w => w.length > 2 && !_STOP.has(w));
+    const freePairs = [];
+    for (let i = 0; i < freeWords.length - 1; i++) freePairs.push(freeWords[i] + ' ' + freeWords[i+1]);
+    const allFreeTerms = [...new Set([...freePairs, ...freeKws])];
+
+    // Render keyword tags
+    const tagsEl = document.getElementById('freeSearchTags');
+    if (tagsEl) {
+        tagsEl.innerHTML = allFreeTerms.map(t =>
+            `<span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:12px;font-size:.75em;font-weight:600;">${escHtml(t)}</span>`
+        ).join('');
+    }
     out.innerHTML = '';
 
     const appliedCount = allJobs.filter(j => appliedJobs.has(j.url)).length;
@@ -1049,17 +1396,43 @@ function renderJobs() {
         );
     }
 
-    /* Exclude filter */
+    /* Exclude filter:
+       - English phrases: \b word-boundary regex (prevents "software engineer" blocking "software engineering")
+       - Hebrew words: simple includes() (\b doesn't work for Hebrew in JS) */
     if (filterExclude.length) {
+        const isHebrew = w => /[֐-׿]/.test(w);
+        const exTests = filterExclude.map(w =>
+            isHebrew(w)
+                ? hay => hay.toLowerCase().includes(w)
+                : hay => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(hay)
+        );
         visible = visible.filter(j => {
-            const hay = ((j.title || '') + ' ' + (j.company || '')).toLowerCase();
-            return !filterExclude.some(word => hay.includes(word));
+            const hay = (j.title || '') + ' ' + (j.company || '');
+            return !exTests.some(test => test(hay));
         });
     }
 
     /* Score filter */
     if (minScore > 0) {
         visible = visible.filter(j => (j.score || 0) >= minScore);
+    }
+
+    /* Free-text filter + re-rank */
+    if (allFreeTerms.length) {
+        const scored = visible.map(j => {
+            const hay = ((j.title || '') + ' ' + (j.company || '')).toLowerCase();
+            const hits = allFreeTerms.filter(t => hay.includes(t)).length;
+            return { j, hits };
+        }).filter(({hits}) => hits > 0);
+        // Sort: most hits first (within same applied-status and cv-score tier)
+        scored.sort((a, b) => {
+            const aApp = appliedJobs.has(a.j.url) ? 1 : 0;
+            const bApp = appliedJobs.has(b.j.url) ? 1 : 0;
+            if (aApp !== bApp) return aApp - bApp;
+            if (b.hits !== a.hits) return b.hits - a.hits;
+            return (b.j.score||0) - (a.j.score||0);
+        });
+        visible = scored.map(({j, hits}) => ({...j, _freeHits: hits}));
     }
 
     /* Deduplication: keep highest-score job per normalized title */
@@ -1102,6 +1475,8 @@ function renderJobs() {
         visible.forEach(j => { (bySource[j.source] = bySource[j.source] || []).push(j); });
     }
 
+    let cardCount = 0;
+
     Object.entries(bySource).forEach(([src, list]) => {
         const sc = SOURCE_COLORS[src] || { color: '#64748b', bg: '#f1f5f9', ico: '🔗' };
         const isCollapsed = _collapsedGroups.has(src);
@@ -1116,12 +1491,18 @@ function renderJobs() {
             <div class="source-group-body"></div>`;
 
         list.forEach(job => {
-            if (job.url) _jobsMap[job.url] = job;
-            const isApplied  = appliedJobs.has(job.url);
-            const matchClass = isApplied ? '' : job.score >= 7 ? 'match-high' : job.score >= 4 ? 'match-med' : 'match-low';
-            const badgeClass = job.score >= 7 ? 'match-high-badge' : job.score >= 4 ? 'match-med-badge' : 'match-none-badge';
-            const badgeText  = job.score > 0 ? `${job.score}/10` : '';
-            const urlEsc     = escHtml(job.url);
+            cardCount++;
+            const jobUrl      = (job.url || '').replace('//il.linkedin.com/', '//www.linkedin.com/');
+            if (jobUrl) _jobsMap[jobUrl] = job;
+            const isApplied   = appliedJobs.has(jobUrl);
+            const appliedEsc  = escHtml(jobUrl);
+            const urlEsc      = appliedEsc;
+            const pct         = job.score > 0 ? Math.round(job.score * 10) : 0;
+            const circleClass = job.score >= 7 ? 'high' : job.score >= 4 ? 'med' : 'low';
+            const labelText   = job.score >= 7 ? 'התאמה גבוהה' : job.score >= 4 ? 'התאמה בינונית' : job.score > 0 ? 'התאמה נמוכה' : '';
+            const numStr      = String(cardCount).padStart(2, '0');
+            const keywords    = job.matchKeywords || [];
+            const companyLoc  = [job.company, job.location].filter(Boolean).join(' · ').toUpperCase();
 
             let recruiterIdx = -1;
             if (job.recruiter_name) {
@@ -1130,26 +1511,35 @@ function renderJobs() {
             }
 
             const card = document.createElement('div');
-            card.className = `job-card ${matchClass} ${isApplied ? 'applied' : ''}`;
+            card.className = `trevo-card ${isApplied ? 'applied' : ''}`;
             card.innerHTML = `
-                <div class="job-info">
-                    <div class="job-title">${escHtml(job.title)}</div>
-                    <div class="job-company">${escHtml(job.company || '')}</div>
-                    <div class="job-meta">
-                        ${job.location ? `<span>📍 ${escHtml(job.location)}</span>` : ''}
-                        ${job.date     ? `<span>📅 ${escHtml(job.date)}</span>`     : ''}
-                        ${recruiterIdx >= 0 ? `<span>👤 <button onclick="openRecruiterModal(${recruiterIdx})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-weight:600;font-size:inherit;padding:0;text-decoration:underline dotted;">${escHtml(job.recruiter_name)}</button></span>` : ''}
-                        ${isApplied    ? `<span style="color:#16a34a;font-weight:700;">✅ הגשתי</span>` : ''}
-                    </div>
+                <div class="trevo-score-col">
+                    <div class="trevo-circle ${circleClass}">${pct > 0 ? pct + '%' : '—'}</div>
+                    ${labelText ? `<div class="trevo-score-label ${circleClass}">${labelText}</div>` : ''}
+                    ${job._freeHits ? `<div style="font-size:.68em;color:#5b21b6;font-weight:700;margin-top:2px;">${job._freeHits}/${allFreeTerms.length} מילים</div>` : ''}
+                    <a href="${urlEsc}" target="_blank" class="trevo-open-btn">← פתח</a>
+                    ${job.date ? `<div class="trevo-date">${escHtml(job.date)}</div>` : ''}
                 </div>
-                <div class="job-actions">
-                    ${!isApplied && badgeText ? `<span class="match-badge ${badgeClass}">⭐ ${badgeText}</span>` : ''}
-                    ${isApplied
-                        ? `<span class="applied-badge">✅ הוגשה</span>
-                           <button class="undo-btn" onclick="toggleApplied('${urlEsc}')">בטל</button>`
-                        : `<button class="mark-btn" onclick="toggleApplied('${urlEsc}')">✅ הגשתי</button>
-                           <a href="${urlEsc}" target="_blank" class="apply-btn">הגש מועמדות ↗</a>`
-                    }
+                <div class="trevo-job-col">
+                    <div class="trevo-num">${numStr}</div>
+                    <div class="trevo-company">${escHtml(companyLoc)}</div>
+                    <a href="${urlEsc}" target="_blank" class="trevo-title ${isApplied ? 'applied-title' : ''}">${escHtml(job.title)}</a>
+                    ${keywords.length ? `
+                    <div class="trevo-why">
+                        <div class="trevo-why-label">מה התאים</div>
+                        ${keywords.map(k => `<span class="trevo-tag ${k.startsWith('מיקום') ? 'loc' : 'kw'}">${escHtml(k)}</span>`).join('')}
+                    </div>` : ''}
+                    <div class="trevo-actions">
+                        ${isApplied
+                            ? `<span class="applied-badge">✅ הוגשה</span>
+                               <button class="undo-btn" onclick="toggleApplied('${appliedEsc}')">בטל</button>`
+                            : `<button class="mark-btn" onclick="toggleApplied('${appliedEsc}')">✅ הגשתי</button>`
+                        }
+                        ${recruiterIdx >= 0 ? `<button onclick="openRecruiterModal(${recruiterIdx})" style="background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:.8em;font-weight:700">👤 ${escHtml(job.recruiter_name)}</button>` : ''}
+                        <label class="trevo-select-wrap" title="סמן לפתיחה מרובה">
+                            <input type="checkbox" class="trevo-select" data-url="${appliedEsc}" onchange="toggleSelect(this,'${appliedEsc}')" ${_selectedJobs.has(jobUrl) ? 'checked' : ''}>
+                        </label>
+                    </div>
                 </div>`;
             grp.querySelector('.source-group-body').appendChild(card);
         });
@@ -1164,32 +1554,128 @@ function toggleGroup(src, el) {
     el.classList.toggle('collapsed', _collapsedGroups.has(src));
 }
 
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.trevo-select');
+    const allChecked = [...checkboxes].every(cb => cb.checked);
+    checkboxes.forEach(cb => {
+        cb.checked = !allChecked;
+        const url = cb.dataset.url;
+        if (url) {
+            if (!allChecked) _selectedJobs.add(url);
+            else _selectedJobs.delete(url);
+        }
+        cb.closest('.trevo-card')?.classList.toggle('card-selected', !allChecked);
+    });
+    const n = _selectedJobs.size;
+    document.getElementById('selectedCount').textContent = n;
+    document.getElementById('openSelectedBtn').classList.toggle('visible', n > 0);
+    document.getElementById('selectAllBtn').textContent = allChecked ? '☑ סמן הכל' : '☐ בטל הכל';
+}
+
+function toggleSelect(cb, url) {
+    if (cb.checked) _selectedJobs.add(url);
+    else _selectedJobs.delete(url);
+    cb.closest('.trevo-card').classList.toggle('card-selected', cb.checked);
+    const n = _selectedJobs.size;
+    document.getElementById('selectedCount').textContent = n;
+    document.getElementById('openSelectedBtn').classList.toggle('visible', n > 0);
+}
+
+function openSelected() {
+    _openQueue = [..._selectedJobs];
+    if (!_openQueue.length) return;
+    _openNextInQueue();
+}
+
+function _openNextInQueue() {
+    if (!_openQueue.length) {
+        _refreshOpenBtn();
+        return;
+    }
+    const url = _openQueue.shift();
+    window.open(url, '_blank');
+    _refreshOpenBtn();
+}
+
+function _refreshOpenBtn() {
+    const btn  = document.getElementById('openSelectedBtn');
+    const span = document.getElementById('selectedCount');
+    if (_openQueue.length > 0) {
+        span.textContent = _openQueue.length + ' נותרו';
+        btn.innerHTML = `הבא ← (<span id="selectedCount">${_openQueue.length} נותרו</span>)`;
+        btn.onclick = _openNextInQueue;
+    } else if (_selectedJobs.size > 0) {
+        span.textContent = _selectedJobs.size;
+        btn.innerHTML = `📂 פתח מסומנים (<span id="selectedCount">${_selectedJobs.size}</span>)`;
+        btn.onclick = openSelected;
+    }
+}
+
+/* ── Disqualify irrelevant job titles ── */
+// Jobs with management words are never disqualified (manager, director, head, lead, vp, מנהל, ראש)
+const _MGMT_RE = /\b(manager|director|head\s+of|vp\b|lead\b|principal|chief|program\s+manager|pmo|מנהל|ראש\b|ניהול)\b/i;
+
+function isJobDisqualified(job) {
+    const t = (job.title || '').toLowerCase();
+    if (_MGMT_RE.test(t)) return false;  // any management signal → keep
+
+    // Factory / manufacturing production
+    if (/ייצור/.test(job.title || '')) return true;
+
+    // IC QA / testing / development roles (no management word)
+    if (/\b(quality engineer|qa engineer|test(ing)? engineer|automation engineer|automation developer|qa analyst|quality analyst|content qa|tester|sdet|בודק|בדיקות)\b/i.test(t)) return true;
+
+    // Title is just "QA" + specialty (no management)
+    if (/^qa[\s\(]/.test(t)) return true;
+
+    return false;
+}
+
 /* ── Simple local scoring based on CV text + role keywords ── */
 const ROLE_KEYWORDS = {
-    'Head of QA':                  ['head of qa','qa manager','quality','testing','automation','jira','agile','scrum','release'],
-    'QA Manager':                  ['qa manager','quality','testing','automation','selenium','test plan','jira','agile'],
-    'Director of QA':              ['director','qa','quality','strategy','leadership','testing','automation','agile'],
-    'R&D Program Manager':         ['r&d','program manager','engineering','roadmap','agile','scrum','jira','stakeholder','delivery'],
-    'Technical Program Manager':   ['technical','program manager','engineering','ci/cd','jenkins','github','agile','scrum'],
-    'Program Manager':             ['program manager','pmo','roadmap','stakeholder','delivery','agile','scrum','jira'],
-    'Project Manager':             ['project manager','pmo','roadmap','stakeholder','monday','jira','agile','scrum'],
-    'PMO Manager':                 ['pmo','program','project','portfolio','governance','reporting','stakeholder','kpi'],
-    'Release Manager':             ['release manager','ci/cd','devops','deployment','pipeline','git','jenkins','branching'],
-    'Professional Services Manager':['professional services','customer','implementation','onboarding','stakeholder','delivery'],
+    'Head of QA':                    ['head of qa','qa manager','quality','testing','automation','jira','agile','scrum','release'],
+    'QA Manager':                    ['qa manager','quality','testing','automation','selenium','test plan','jira','agile'],
+    'Director of QA':                ['director','qa','quality','strategy','leadership','testing','automation','agile'],
+    'QA Director':                   ['qa director','director of qa','quality director','testing','automation','selenium','ci/cd','agile','jira','xray'],
+    'Director of Quality':           ['director of quality','quality director','director','testing','automation','agile','ci/cd','jira'],
+    'VP QA':                         ['vp qa','vp quality','qa director','quality director','head of qa','testing','automation','agile'],
+    'QA Engineering Director':       ['qa director','quality engineering','director','testing','automation','selenium','ci/cd','agile'],
+    'QA Tech Lead':                  ['qa tech lead','qa lead','test lead','automation','selenium','python','java','ci/cd','jira'],
+    'SDET Lead':                     ['sdet','test automation','automation lead','selenium','python','java','ci/cd','jenkins','pytest'],
+    'R&D Program Manager':           ['r&d','program manager','engineering','roadmap','agile','scrum','jira','stakeholder','delivery'],
+    'Technical Program Manager':     ['technical','program manager','engineering','ci/cd','jenkins','github','agile','scrum'],
+    'Senior Program Manager':        ['senior program manager','program manager','roadmap','stakeholder','agile','scrum','jira','monday.com','delivery'],
+    'TPM':                           ['tpm','technical program manager','program manager','engineering','ci/cd','github','agile','scrum'],
+    'Release Program Manager':       ['release program manager','release manager','program manager','ci/cd','agile','scrum','jira','deployment'],
+    'Program Manager':               ['program manager','pmo','roadmap','stakeholder','delivery','agile','scrum','jira'],
+    'Project Manager':               ['project manager','pmo','roadmap','stakeholder','monday','jira','agile','scrum'],
+    'PMO Manager':                   ['pmo','program','project','portfolio','governance','reporting','stakeholder','kpi'],
+    'Delivery Manager':              ['delivery manager','delivery lead','agile','scrum','roadmap','stakeholder','jira','release'],
+    'Release Manager':               ['release manager','ci/cd','devops','deployment','pipeline','git','jenkins','branching'],
+    'Release Train Engineer':        ['release train','rte','safe','agile','pi planning','scrum','jira','delivery'],
+    'Engineering Operations Manager':['engineering operations','r&d operations','monday','jira','agile','ci/cd','kpi','governance'],
+    'R&D Operations Manager':        ['r&d operations','engineering operations','monday','jira','agile','scrum','reporting','kpi'],
+    'Head of Engineering Operations':['engineering operations','head of','r&d','monday','jira','agile','ci/cd','governance'],
+    'Professional Services Manager': ['professional services','customer','implementation','onboarding','stakeholder','delivery'],
 };
 
 function scoreJob(job, targetRoles) {
-    if (!cvFiles.length) return 0;
-    // Best score across all uploaded CVs
-    return Math.max(...cvFiles.map(cv => scoreJobAgainstCv(job, targetRoles, cv.text)));
+    if (!cvFiles.length) return {score: 0, keywords: []};
+    let best = {score: 0, keywords: []};
+    for (const cv of cvFiles) {
+        const r = scoreJobAgainstCv(job, targetRoles, cv.text);
+        if (r.score > best.score) best = r;
+    }
+    return best;
 }
 
 function scoreJobAgainstCv(job, targetRoles, cvText) {
-    if (!cvText || cvText.length < 50) return 0;
+    if (!cvText || cvText.length < 50) return {score: 0, keywords: []};
 
     const cvLower    = cvText.toLowerCase();
     const titleLower = (job.title + ' ' + job.company).toLowerCase();
     let score = 0;
+    const matchedKw = [];
 
     for (const role of targetRoles) {
         const words = role.toLowerCase().split(' ');
@@ -1201,11 +1687,28 @@ function scoreJobAgainstCv(job, targetRoles, cvText) {
     const uniqueKw = [...new Set(allKeywords)];
     let kwHits = 0;
     for (const kw of uniqueKw) {
-        if (titleLower.includes(kw) && cvLower.includes(kw)) kwHits++;
+        if (titleLower.includes(kw) && cvLower.includes(kw)) {
+            kwHits++;
+            matchedKw.push(kw);
+        }
     }
     score += Math.min(kwHits * 2, 4);
 
-    return Math.min(score, 10);
+    // Seniority tag
+    const senMap = [['vp ','VP'],['director','director'],['principal','principal'],['head of','head of'],['lead','lead'],['senior','senior']];
+    for (const [kw, label] of senMap) {
+        if (titleLower.includes(kw)) { matchedKw.push('סניוריות · ' + label); break; }
+    }
+
+    // Location tag
+    if (job.location) {
+        const loc = job.location.toLowerCase();
+        const city = loc.includes('tel aviv') ? 'tel aviv' : loc.includes('herzliya') ? 'herzliya'
+            : loc.includes('remote') ? 'remote' : loc.split(',')[0].split('·')[0].trim();
+        if (city) matchedKw.push('מיקום · ' + city);
+    }
+
+    return {score: Math.min(score, 10), keywords: matchedKw.slice(0, 5)};
 }
 
 /* ── Generate Claude Prompt ── */
@@ -1367,6 +1870,294 @@ function downloadCv() {
     const a   = document.createElement('a');
     a.href = url; a.download = cv.name; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ── LinkedIn Outreach ──────────────────────────────────────────────────────
+
+const liConnected = new Set(); // URLs already connected this session
+
+async function loadLinkedInPeople() {
+    const city = document.getElementById('liCity').value;
+    const btn  = document.getElementById('liLoadBtn');
+    const status = document.getElementById('liStatus');
+    btn.disabled = true;
+    btn.textContent = '⏳ טוען...';
+    status.textContent = '';
+    try {
+        const res  = await fetch(`${SERVER}/linkedin-people?city=${encodeURIComponent(city)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderLiPeople(data.people || []);
+    } catch(e) {
+        document.getElementById('liStatus').textContent = '⚠️ שגיאה: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 טען אנשים';
+    }
+}
+
+function renderLiPeople(people) {
+    const container = document.getElementById('liPeopleCards');
+    const status    = document.getElementById('liStatus');
+    container.innerHTML = '';
+    document.getElementById('liPeopleList').style.display = 'block';
+
+    if (!people.length) {
+        status.textContent = 'לא נמצאו אנשים — נסה עיר אחרת.';
+        return;
+    }
+
+    people.forEach(p => {
+        const card = document.createElement('div');
+        card.style = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#f8faff;border-radius:10px;border:1px solid #e0e7ff;gap:12px;flex-wrap:wrap';
+        const already = liConnected.has(p.url);
+        card.innerHTML = `
+            <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:.95em"><a href="${p.url}" target="_blank" style="color:#4f46e5;text-decoration:none">${p.name}</a></div>
+                <div style="color:#666;font-size:.82em;margin-top:2px">${p.title || ''}</div>
+            </div>
+            <button id="liBtn_${btoa(p.url).replace(/=/g,'')}" onclick="sendLiConnect('${p.url}','${p.first.replace(/'/g,"\\'")}',this)"
+                class="btn ${already ? 'btn-outline' : 'btn-primary'}"
+                style="font-size:.82em;padding:7px 14px;white-space:nowrap"
+                ${already ? 'disabled' : ''}>
+                ${already ? '✓ נשלח' : '🤝 Connect + הודעה'}
+            </button>`;
+        container.appendChild(card);
+    });
+    status.textContent = `נמצאו ${people.length} אנשים`;
+}
+
+async function sendLiConnect(url, first, btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ שולח...';
+    try {
+        const res  = await fetch(`${SERVER}/linkedin-connect`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({url, first})
+        });
+        const data = await res.json();
+        if (data.result === 'sent') {
+            btn.textContent = '✓ נשלח';
+            btn.className = 'btn btn-outline';
+            liConnected.add(url);
+        } else {
+            btn.textContent = '⚠️ ' + data.result;
+            btn.disabled = false;
+        }
+    } catch(e) {
+        btn.textContent = '⚠️ שגיאה';
+        btn.disabled = false;
+    }
+}
+
+/* ── LinkedIn Free Search ── */
+const _LI_STOP = new Set(['jobs','job','that','need','needs','with','and','or','the','a','an',
+    'in','of','to','is','are','have','has','for','who','which','where','want','require',
+    'requires','looking','position','role','roles','find','get','i','am','can','do','not',
+    'be','my','me','strong','good','experience','someone','who','will','must','should']);
+
+function linkedinFreeSearch() {
+    const raw = (document.getElementById('linkedinFreeQuery')?.value || '').trim();
+    if (!raw) return;
+
+    const btn = document.querySelector('[onclick="linkedinFreeSearch()"]');
+    if (btn) { btn.disabled = true; btn.textContent = `⏳ מחפש ב-LinkedIn...`; }
+
+    // Make sure results area is visible and scroll to it
+    const jobsWrap = document.getElementById('jobsWrap');
+    jobsWrap.style.display = 'block';
+    setTimeout(() => jobsWrap.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+
+    // Show a loading banner in the results area
+    let banner = document.getElementById('liFreeBanner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'liFreeBanner';
+        banner.style.cssText = 'background:#e0f2fe;border:1.5px solid #0077b5;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-weight:700;color:#0077b5;direction:rtl;';
+        jobsWrap.prepend(banner);
+    }
+    banner.textContent = `🔍 מחפש ב-LinkedIn: "${raw}" — זה לוקח ~30 שניות...`;
+
+    const time = getRadio('time') || '20h';
+    const params = new URLSearchParams({ roles: raw, time, sources: 'linkedin', raw: '1' });
+    const evt    = new EventSource(`${STREAM_BASE}/stream?${params}`);
+    let found = 0;
+
+    evt.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.done) {
+            evt.close();
+            if (btn) { btn.disabled = false; btn.textContent = '🔎 חפש ב-LinkedIn'; }
+            banner.textContent = found
+                ? `✅ LinkedIn חיפוש חופשי: נמצאו ${found} משרות חדשות`
+                : `⚠️ לא נמצאו משרות עבור: "${raw}"`;
+            return;
+        }
+        if (data.jobs) {
+            const newJobs = data.jobs.filter(j => j.url && !allJobs.find(e => e.url === j.url));
+            if (newJobs.length) {
+                found += newJobs.length;
+                banner.textContent = `🔍 LinkedIn: קיבלנו ${found} משרות...`;
+                const scored = newJobs.map(j => {
+                    const {score, keywords} = scoreJob(j, lastTargetRoles?.length ? lastTargetRoles : [raw]);
+                    return {...j, score, matchKeywords: keywords};
+                });
+                allJobs = [...allJobs, ...scored];
+                allJobs.sort((a,b) => (b.score||0) - (a.score||0));
+                renderJobs();
+            }
+        }
+    };
+    evt.onerror = () => {
+        evt.close();
+        if (btn) { btn.disabled = false; btn.textContent = '🔎 חפש ב-LinkedIn'; }
+        if (!found) banner.textContent = `❌ שגיאה בחיפוש ב-LinkedIn`;
+    };
+}
+
+/* ── Auto-Apply ── */
+let _aaPollTimer = null;
+let _aaLinkedInJobs = [];
+
+function startAutoApply() {
+    const threshold = 8; // score 8 = 80%
+    const candidates = allJobs.filter(j =>
+        (j.score || 0) >= threshold && !appliedJobs.has(j.url)
+    );
+    if (!candidates.length) {
+        alert('אין משרות עם ניקוד 80%+ שלא הוגשו עדיין.');
+        return;
+    }
+
+    const modal = document.getElementById('autoApplyModal');
+    const list  = document.getElementById('aaProgressList');
+    const sum   = document.getElementById('aaSummary');
+
+    modal.classList.add('show');
+    sum.style.display = 'none';
+    list.innerHTML    = '';
+    document.getElementById('aaOpenManualBtn').style.display = 'none';
+    document.getElementById('aaCloseBtn').style.display      = 'none';
+    _aaLinkedInJobs = [];
+
+    // Split immediately: LinkedIn → server automation, rest → open in tabs
+    const liJobs    = candidates.filter(j => (j.url || '').includes('linkedin.com'));
+    const otherJobs = candidates.filter(j => !(j.url || '').includes('linkedin.com'));
+
+    // Non-LinkedIn: show immediately as manual with open button per row
+    otherJobs.forEach(job => list.appendChild(_aaRow(job, 'manual')));
+
+    // LinkedIn: show as processing
+    liJobs.forEach(job => {
+        _aaLinkedInJobs.push(job);
+        list.appendChild(_aaRow(job, 'processing'));
+    });
+
+    // Update summary bar
+    _aaShowSummary(otherJobs.map(j => ({...j, status:'manual'})), liJobs.length > 0);
+
+    // If no LinkedIn jobs — show close + open buttons immediately, done
+    if (!liJobs.length) {
+        document.getElementById('aaOpenManualBtn').style.display = otherJobs.length ? '' : 'none';
+        document.getElementById('aaCloseBtn').style.display = '';
+        return;
+    }
+
+    // Send only LinkedIn jobs to server
+    fetch(`${SERVER}/auto-apply`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({jobs: liJobs.map(j => ({
+            url: j.url, title: j.title, company: j.company, source: j.source
+        }))})
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.error) { alert('שגיאה: ' + res.error); return; }
+        _aaPollTimer = setInterval(_aaPoll, 2000);
+    })
+    .catch(e => { alert('שגיאה בשרת: ' + e); });
+}
+
+function _aaRow(job, status) {
+    const icons  = { processing:'⏳', applied:'✅', manual:'🌐', stuck:'⚠️', error:'❌', no_easy_apply:'🌐', login_failed:'🔑' };
+    const labels = { processing:'ממתין... (LinkedIn)', applied:'הוגש אוטומטית!', manual:'לחץ לפתוח', stuck:'נתקע', error:'שגיאה', no_easy_apply:'פתח ידנית', login_failed:'בעיית כניסה' };
+    const isManu = ['manual','no_easy_apply'].includes(status);
+    const row = document.createElement('div');
+    row.className = `aa-job-row ${status === 'applied' ? 'applied' : isManu ? 'manual' : status === 'processing' ? 'processing' : 'error'}`;
+    row.dataset.url = job.url;
+    row.innerHTML = `
+        <div class="aa-status">${icons[status] || '❓'}</div>
+        <div class="aa-info">
+            <div class="aa-name">${escHtml(job.title)}</div>
+            <div class="aa-co">${escHtml(job.company || '')} · ${escHtml(job.source || '')}</div>
+        </div>
+        ${isManu
+            ? `<a href="${escHtml(job.url)}" target="_blank" style="font-size:.78em;font-weight:700;color:#0369a1;white-space:nowrap;text-decoration:none;background:#e0f2fe;padding:4px 9px;border-radius:6px;">פתח ←</a>`
+            : `<div style="font-size:.78em;color:var(--muted);white-space:nowrap">${labels[status] || status}</div>`
+        }`;
+    return row;
+}
+
+function _aaPoll() {
+    fetch(`${SERVER}/auto-apply-status`)
+    .then(r => r.json())
+    .then(state => {
+        const list = document.getElementById('aaProgressList');
+        state.progress.forEach(job => {
+            const existing = list.querySelector(`[data-url="${CSS.escape(job.url)}"]`);
+            const newRow = _aaRow(job, job.status);
+            if (existing) existing.replaceWith(newRow);
+            else list.appendChild(newRow);
+        });
+
+        if (state.done) {
+            clearInterval(_aaPollTimer);
+            _aaPollTimer = null;
+            const allProgress = [
+                ...state.progress,
+                ...Array.from(list.querySelectorAll('.aa-job-row.manual')).map(r => ({url: r.dataset.url, status:'manual'}))
+            ];
+            _aaShowSummary(allProgress, false);
+            // Mark applied in tracker
+            state.progress.filter(j => j.status === 'applied').forEach(j => {
+                if (!appliedJobs.has(j.url)) {
+                    appliedJobs.add(j.url);
+                    _appliedData[j.url] = { status: 'נשלח', notes: 'Auto-Applied' };
+                }
+            });
+            renderJobs();
+        }
+    })
+    .catch(() => {});
+}
+
+function _aaShowSummary(manualItems, liPending) {
+    const applied = manualItems.filter(j => j.status === 'applied').length;
+    const manual  = manualItems.filter(j => ['manual','no_easy_apply'].includes(j.status)).length;
+    const failed  = manualItems.filter(j => !['applied','manual','no_easy_apply','processing'].includes(j.status)).length;
+    const sum = document.getElementById('aaSummary');
+    sum.style.display = 'flex';
+    sum.innerHTML = `
+        ${applied  ? `<div class="aa-sum-item" style="color:#16a34a">✅ ${applied} הוגשו אוטומטית</div>` : ''}
+        ${manual   ? `<div class="aa-sum-item" style="color:#0369a1">🌐 ${manual} פתח בטאב</div>` : ''}
+        ${liPending? `<div class="aa-sum-item" style="color:#7c3aed">⏳ LinkedIn — מתבצע...</div>` : ''}
+        ${failed   ? `<div class="aa-sum-item" style="color:#dc2626">❌ ${failed} נכשלו</div>` : ''}`;
+    document.getElementById('aaOpenManualBtn').style.display = manual ? '' : 'none';
+    if (!liPending) document.getElementById('aaCloseBtn').style.display = '';
+}
+
+function openManualJobs() {
+    document.querySelectorAll('#aaProgressList .aa-job-row.manual a').forEach(a => {
+        window.open(a.href, '_blank');
+    });
+}
+
+function closeAutoApplyModal(e) {
+    if (e && e.target !== document.getElementById('autoApplyModal')) return;
+    document.getElementById('autoApplyModal').classList.remove('show');
+    if (_aaPollTimer) { clearInterval(_aaPollTimer); _aaPollTimer = null; }
 }
 </script>
 </body>

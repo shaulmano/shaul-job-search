@@ -1,3 +1,8 @@
+"""Entry point for the scheduled Telegram notifications.
+
+    python run_notify.py            # every source (what the hourly workflow runs)
+    python run_notify.py linkedin   # LinkedIn only, for a quick manual check
+"""
 import os, sys
 
 # Load credentials from config.py when running locally (file is gitignored)
@@ -11,11 +16,13 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import job_server
 
-if os.getenv('GITHUB_ACTIONS'):
-    # GitHub Actions: use fast sources only (no Playwright installed)
-    pass
-else:
-    # Local: use all sources for maximum coverage
-    job_server.SCHEDULED_SOURCES_FAST = job_server.SCHEDULED_SOURCES
+mode = sys.argv[1].lower() if len(sys.argv) > 1 else 'full'
 
-job_server._run_notify_job()
+if mode == 'linkedin':
+    job_server._run_notify_job(
+        sources=['linkedin'], always_notify=True, scope=' בלינקדאין')
+else:
+    # Runs hourly. Silence would be ambiguous — a quiet hour and a broken scraper
+    # look identical — so this always reports back, even with nothing new.
+    job_server._run_notify_job(
+        sources=job_server.SCHEDULED_SOURCES, always_notify=True)

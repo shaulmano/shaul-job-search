@@ -1,0 +1,54 @@
+LINKEDIN OUTREACH - two messages, used in this order.
+
+===============================================================
+STEP 1: CONNECTION REQUEST NOTE
+LinkedIn caps this at 300 characters. This one is 247, so you have
+a little room to add a personal line if you know something about them.
+===============================================================
+
+Hi {first_name}, I'm a QA leader with 25 years behind me, most recently Head of QA
+at Qmarkets. I'm looking for my next role and hoping one of your portfolio companies
+needs someone to run quality, especially with AI in the product. Would be glad to
+connect.
+
+
+===============================================================
+STEP 2: SEND THIS ONCE THEY ACCEPT
+Wait for the accept. Do not paste this into the connection request.
+===============================================================
+
+Thanks for connecting, {first_name}.
+
+Quick context. I'm Shaul Mano, 25 years in software quality. The last 15 running QA
+for entire product areas and managing global teams: Head of QA at Qmarkets until
+January this year, and before that RSA Security, Symantec and Promisec. At Qmarkets
+I brought post-release production bugs down by 35%.
+
+This past year I've been building and testing AI agents myself, and working out how
+you test software that doesn't give you the same answer twice. Plenty of teams are
+shipping AI features right now with no good way to answer "is this actually good
+enough to release?" That's the part I'm good at.
+
+So if one of your portfolio companies is growing its R&D team and needs someone to
+run quality, I'd really appreciate an introduction. Happy to send my CV over, or to
+talk to any founder for 15 minutes.
+
+Thanks,
+Shaul
+
+
+===============================================================
+WHO TO SEND IT TO
+===============================================================
+
+On the fund's LinkedIn company page, click "People", then type one of these into
+the search box on that tab:
+
+    talent        platform        people        HR        recruit
+
+You want a title like Head of Talent, Talent Partner, VP Talent, Head of Platform,
+or People Partner. That person's whole job is connecting people to portfolio
+companies, so this is a normal request for them, not an imposition.
+
+If the fund is small and has nobody like that, go to a Partner instead. Smaller
+funds handle talent at partner level.

@@ -10,5 +10,10 @@ echo  [2/3] Installing Playwright browser (Chromium)...
 
 echo  [3/3] Starting Job Search Server...
 echo.
-start "" "%~dp0job-search-hub.html"
-"%PY%" "%~dp0job_server.py"
+echo  Job Search Server ^-^> http://localhost:8765
+echo  Opening browser in 3 seconds...
+echo.
+
+start "" "%PY%" "%~dp0job_server.py"
+ping -n 4 127.0.0.1 > nul
+start "" "http://localhost:8765/"

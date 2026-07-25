@@ -1,0 +1,35 @@
+SUBJECT: Looking for my next role. Any portfolio company need a QA leader?
+
+Hi{name_part},
+
+I'm looking for my next role, and it occurred to me that you know your portfolio
+companies far better than any job board does. So I thought I'd write to you directly.
+
+Quick background. I'm Shaul Mano, 25 years in software quality. The last 15 of them
+I ran QA for entire product areas and managed global teams: Head of QA at Qmarkets
+until January this year, and before that RSA Security, Symantec and Promisec. At
+Qmarkets I brought post-release production bugs down by 35%. That came from owning
+the whole thing end to end: test strategy based on real risk, clear release gates,
+proper root cause work, and reporting that management could actually act on.
+
+For the past year I've been building and testing AI agents myself. Along the way I
+worked out how you test software that doesn't give you the same answer twice: golden
+sets, behavior contracts, confidence thresholds, and deliberately trying to break the
+thing, prompt injection included. Plenty of teams are shipping AI features right now
+without a good way to answer "is this actually good enough to release?" That's the
+part I'm good at.
+
+You back a lot of {focus} companies, and that's the world I come from.
+
+So here's my ask. If one of them is growing its R&D team and needs someone to run
+quality, especially if there's AI in the product, I'd really appreciate an
+introduction. And if nothing comes to mind right now, just forwarding my CV to the
+right people would help a lot.
+
+CV is attached. Happy to talk to any founder for 15 minutes.
+
+Thanks,
+Shaul Mano
+052-4304747
+shaul.mano@gmail.com
+https://linkedin.com/in/shaul-mano-0a7a392/

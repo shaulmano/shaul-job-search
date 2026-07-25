@@ -2,13 +2,19 @@ name: Job Search Notify
 
 on:
   schedule:
-    # Israel time (UTC+3): 7:00, 10:00, 13:00, 17:00, 21:00
-    - cron: '0 4,7,10,14,18 * * *'
-  workflow_dispatch:  # Allow manual trigger from GitHub
+    - cron: '0 * * * *'      # every hour, on the hour (UTC)
+  workflow_dispatch:         # allow manual trigger from GitHub
+
+# Each run commits seen_jobs.json + the HTML snapshot, so runs must never
+# overlap — a delayed run must queue behind the previous one, not race it.
+concurrency:
+  group: job-search-notify
+  cancel-in-progress: false
 
 jobs:
   notify:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
     env:
@@ -21,7 +27,12 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 curl_cffi
+        run: pip install requests beautifulsoup4 lxml curl_cffi playwright
+
+      # gotfriends, sqlink, dialog and nisha are scraped through a real browser.
+      # Nisha in particular is where most on-target QA management roles come from.
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
 
       - name: Run notify
         env:
@@ -33,7 +44,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add docs/jobs.html seen_jobs.json
+          git add docs seen_jobs.json
           git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json"
           git pull --rebase --autostash
           git push

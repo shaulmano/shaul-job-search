@@ -1,4 +1,7 @@
 config.py
+config.json
+li_session.json
+trevo_data.json
 *.xlsx
 *.xlsx.bak*
 *.csv
@@ -9,4 +12,3 @@ __pycache__/
 *.pyc
 *.png
 *.log
-
