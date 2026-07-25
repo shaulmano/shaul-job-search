@@ -11,10 +11,23 @@ import os
 import re
 import threading
 import time
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 import requests
 from bs4 import BeautifulSoup
+
+# GitHub Actions runners are UTC, so timestamps in the messages were three hours
+# behind. Pin them to Israel time instead of trusting the machine clock.
+try:
+    from zoneinfo import ZoneInfo
+    _TZ = ZoneInfo('Asia/Jerusalem')
+except Exception:      # no IANA database (bare Windows) — local clock is already IL
+    _TZ = None
+
+
+def _now_il():
+    return datetime.now(_TZ) if _TZ else datetime.now()
 
 try:
     from curl_cffi import requests as cf_requests
@@ -1305,7 +1318,7 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         print(msg, end='')
         if status_cb:
             status_cb(msg)
-    _status(f'[notify] Starting — {time.strftime("%Y-%m-%d %H:%M")} — sources={",".join(sources)}\n')
+    _status(f'[notify] Starting — {_now_il():%Y-%m-%d %H:%M} IL — sources={",".join(sources)}\n')
     seen  = _load_seen_jobs()
     results = []
     lock    = threading.Lock()
@@ -1444,8 +1457,9 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         updated_seen = set(list(updated_seen)[-4000:])
     _save_seen_jobs(updated_seen)
 
-    hour = time.strftime('%H:%M')
-    date = time.strftime('%Y-%m-%d')
+    now  = _now_il()
+    hour = f'{now:%H:%M}'
+    date = f'{now:%Y-%m-%d}'
 
     # Why each empty-handed source came back empty. "Nothing new" and "the
     # scraper crashed" look identical from the outside, so spell out which it was.
@@ -1541,7 +1555,7 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
 
     # Save HTML: a per-run snapshot (so an old message's link keeps showing *its*
     # jobs) plus jobs.html as the always-latest copy.
-    snapshot = f'jobs-{time.strftime("%Y%m%d-%H%M")}.html'
+    snapshot = f'jobs-{now:%Y%m%d-%H%M}.html'
     try:
         os.makedirs('docs', exist_ok=True)
         for name in (snapshot, 'jobs.html'):

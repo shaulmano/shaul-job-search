@@ -27,7 +27,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4 lxml curl_cffi playwright
+        run: pip install requests beautifulsoup4 lxml curl_cffi playwright tzdata
 
       # gotfriends, sqlink, dialog and nisha are scraped through a real browser.
       # Nisha in particular is where most on-target QA management roles come from.
