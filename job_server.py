@@ -1173,6 +1173,42 @@ _SOURCE_LABELS = {
     'one1': 'One1', 'googlejobs': 'GoogleJobs', 'jobmaster': 'Jobmaster',
 }
 
+# Known SaaS companies (Israeli + global names common in the Israeli market).
+# Static and necessarily incomplete — no live company-classification source
+# (e.g. Crunchbase) is wired in, so this only flags companies recognized by
+# name. Newer or smaller SaaS companies won't be tagged; add names as they
+# come up.
+_SAAS_COMPANIES = {
+    'monday.com', 'monday', 'wix', 'fiverr', 'walkme', 'riskified',
+    'similarweb', 'yotpo', 'gong', 'hibob', 'papaya global', 'melio',
+    'verbit', 'snyk', 'jfrog', 'wiz', 'rapyd', 'lightricks', 'payoneer',
+    'kaltura', 'sentinelone', 'cyberark', 'armis', 'axonius',
+    'cato networks', 'aqua security', 'tipalti', 'fundbox', 'forter',
+    'namogoo', 'optimove', 'personetics', 'sisense', 'thetaray', 'anodot',
+    'explorium', 'panorays', 'noname security', 'torq', 'global-e',
+    'appsflyer', 'ironsource', 'taboola', 'outbrain', 'zoominfo',
+    'salto', 'firebolt', 'redis', 'fireblocks', 'dynamic yield', 'bringg',
+    'datorama', 'nayax', 'innovid', 'sapiens', 'priority software',
+    'panaya', 'syte', 'cybereason', 'guardicore', 'perimeter 81',
+    'perimeter81', 'hiredscore', 'zesty', 'spot.io', 'firefly',
+    'salesforce', 'hubspot', 'zendesk', 'atlassian', 'servicenow',
+    'workday', 'adobe', 'slack', 'shopify', 'datadog', 'snowflake',
+    'mongodb', 'twilio', 'okta', 'zoom', 'docusign', 'dropbox', 'box',
+    'gitlab', 'github', 'circleci', 'splunk', 'new relic', 'pagerduty',
+    'asana', 'notion', 'miro', 'figma', 'canva', 'coupa', 'freshworks',
+    'genesys', 'five9', 'ringcentral', 'netsuite', 'intuit', 'nice',
+    'amdocs', 'checkmarx', 'cyera', 'orca security', 'wing security',
+    'island', 'gomomento', 'akeyless',
+}
+
+
+def _is_saas_company(company: str) -> bool:
+    c = (company or '').strip().lower()
+    if not c:
+        return False
+    return any(name in c for name in _SAAS_COMPANIES)
+
+
 # Every board answers a query with fuzzy matches — searching "QA Team Leader" on
 # LinkedIn returns "VLSI DFT Team Leader" and "Data Engineering Team Lead". This
 # gate runs on all sources and demands the title actually be about QA, release,
@@ -1260,10 +1296,11 @@ def _job_line(j) -> str:
     company = _esc((j.get('company') or '').strip())
     source  = _esc((j.get('source') or '').strip())
     url     = _esc((j.get('url') or '').strip())
+    tag     = '🟢 SaaS · ' if _is_saas_company(j.get('company')) else ''
     line = f'• <a href="{url}">{title}</a>' if url else f'• {title}'
     meta = ' · '.join(x for x in (company, f'<i>{source}</i>' if source else '') if x)
     if meta:
-        line += f'\n  {meta}'
+        line += f'\n  {tag}{meta}'
     return line
 
 
