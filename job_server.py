@@ -1158,6 +1158,7 @@ SCRAPERS = {
 SCHEDULED_ROLES = [
     'QA Manager', 'QA Director', 'Head of QA', 'QA Team Leader',
     'Release Manager', 'Program Manager', 'Project Manager',
+    'Professional Services Manager',
 ]
 
 # Whole-scan budget. The workflow allows 25 minutes; leave room for setup,
@@ -1174,13 +1175,15 @@ _SOURCE_LABELS = {
 
 # Every board answers a query with fuzzy matches — searching "QA Team Leader" on
 # LinkedIn returns "VLSI DFT Team Leader" and "Data Engineering Team Lead". This
-# gate runs on all sources and demands the title actually be about QA, release or
-# program management, which is what SCHEDULED_ROLES asks for.
+# gate runs on all sources and demands the title actually be about QA, release,
+# program/project or professional-services management, which is what
+# SCHEDULED_ROLES asks for.
 _RELEVANT_TITLE_RE = re.compile(
     r'\b(qa|qc|sqa|quality|test|tester|testing|automation|release|releases|pmo'
     r'|program\s+manager|programme\s+manager|program\s+management'
-    r'|project\s+manager|project\s+management)\b'
-    r'|בדיקות|בודק|איכות|אוטומציה|שחרור|תוכנית|פרויקט',
+    r'|project\s+manager|project\s+management'
+    r'|professional\s+services)\b'
+    r'|בדיקות|בודק|איכות|אוטומציה|שחרור|תוכנית|פרויקט|שירותים\s+מקצועיים',
     re.IGNORECASE,
 )
 
