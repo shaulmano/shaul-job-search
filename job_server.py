@@ -85,7 +85,9 @@ def pw_get_html(url, wait_selector=None, wait_ms=2500):
 
 # ── LinkedIn (guest API — no login, no Playwright needed) ─────────────────────
 def _linkedin_fetch_recruiter(job):
-    """Fetch recruiter name+URL from LinkedIn job detail page (guest API)."""
+    """Fetch recruiter name+URL and SaaS signals from the LinkedIn job detail
+    page (guest API) — one request, reused for both, so this doesn't add any
+    extra load on top of what already runs."""
     import re
     try:
         # URL may be slug form: .../senior-pm-at-company-4413268911/
@@ -103,6 +105,19 @@ def _linkedin_fetch_recruiter(job):
         if link_el:
             job['recruiter_name'] = link_el.get_text(strip=True)
             job['recruiter_url']  = link_el.get('href', '').split('?')[0]
+        desc_el = soup.select_one('.description__text')
+        if desc_el:
+            job['li_description'] = desc_el.get_text(' ', strip=True)[:3000]
+        for item in soup.select('.description__job-criteria-item'):
+            sub = item.select_one('.description__job-criteria-subheader')
+            # Accept-Language is he-IL, so this header usually reads "תעשיות"
+            # rather than "Industries" — match both.
+            if sub and ('industr' in sub.get_text(strip=True).lower()
+                        or 'תעשי' in sub.get_text(strip=True)):
+                val_el = item.select_one('.description__job-criteria-text')
+                if val_el:
+                    job['li_industries'] = val_el.get_text(strip=True)
+                break
     except Exception:
         pass
     return job
@@ -1209,6 +1224,22 @@ def _is_saas_company(company: str) -> bool:
     return any(name in c for name in _SAAS_COMPANIES)
 
 
+# LinkedIn's job detail page (fetched anyway for recruiter info, see
+# _linkedin_fetch_recruiter) carries the full description — for companies not
+# in the static list, this catches self-described SaaS businesses directly.
+_SAAS_DESC_RE = re.compile(
+    r'\bsaas\b|software[\s-]as[\s-]a[\s-]service|cloud-based\s+platform'
+    r'|subscription-based\s+(platform|software)|b2b\s+saas|multi-tenant\s+saas',
+    re.IGNORECASE,
+)
+
+
+def _is_saas(job) -> bool:
+    if _is_saas_company(job.get('company')):
+        return True
+    return bool(_SAAS_DESC_RE.search(job.get('li_description') or ''))
+
+
 # Every board answers a query with fuzzy matches — searching "QA Team Leader" on
 # LinkedIn returns "VLSI DFT Team Leader" and "Data Engineering Team Lead". This
 # gate runs on all sources and demands the title actually be about QA, release,
@@ -1296,7 +1327,7 @@ def _job_line(j) -> str:
     company = _esc((j.get('company') or '').strip())
     source  = _esc((j.get('source') or '').strip())
     url     = _esc((j.get('url') or '').strip())
-    tag     = '🟢 SaaS · ' if _is_saas_company(j.get('company')) else ''
+    tag     = '🟢 SaaS · ' if _is_saas(j) else ''
     line = f'• <a href="{url}">{title}</a>' if url else f'• {title}'
     meta = ' · '.join(x for x in (company, f'<i>{source}</i>' if source else '') if x)
     if meta:
