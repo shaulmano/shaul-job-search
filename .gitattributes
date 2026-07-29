@@ -1,0 +1,5 @@
+# Local and cloud runs both write seen_jobs.json concurrently. On a conflict,
+# take the union of both sides (a superset of "seen" URLs) instead of failing
+# the push -- losing a URL just risks a duplicate notification, which is far
+# cheaper than a failed run.
+seen_jobs.json merge=union

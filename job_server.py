@@ -1286,8 +1286,14 @@ def _save_seen_jobs(urls: set):
     _seen_jobs_memory = urls
     if _SEEN_JOBS_FILE:
         try:
+            # One URL per line (sorted) rather than a single-line blob: local
+            # and cloud runs both write this file, and a one-line JSON diffs
+            # as a single all-or-nothing hunk, so any two concurrent runs
+            # always conflict. Spread across sorted lines, most concurrent
+            # additions land at different lines and merge on their own; the
+            # merge=union rule in .gitattributes covers what's left.
             with open(_SEEN_JOBS_FILE, 'w') as f:
-                json.dump({'urls': sorted(urls)}, f)
+                json.dump({'urls': sorted(urls)}, f, indent=2)
         except Exception as e:
             print(f'  [notify] save seen_jobs failed: {e}')
 
