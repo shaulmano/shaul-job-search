@@ -1249,14 +1249,18 @@ def _is_saas(job) -> bool:
 # program/project or professional-services management, which is what
 # SCHEDULED_ROLES asks for.
 _RELEVANT_TITLE_RE = re.compile(
-    r'\b(qa|qc|sqa|quality|test|tester|testing|automation|release|releases|pmo'
+    # 'automation' is deliberately absent. On its own it qualified titles like
+    # "Head of Automation" and "Automation Team Leader" — automation-owning
+    # roles, which Shaul is not looking for. A genuine QA post always carries
+    # qa/quality/test as well, so "QA Automation Manager" still passes on those.
+    r'\b(qa|qc|sqa|quality|test|tester|testing|release|releases|pmo'
     r'|program\s+manager|programme\s+manager|program\s+management'
     r'|project\s+manager|project\s+management'
     # Deliberately the two-word forms, not a bare "delivery": on the Israeli
     # boards that word alone is mostly couriers and food delivery.
     r'|delivery\s+manager|delivery\s+management|delivery\s+lead'
     r'|professional\s+services)\b'
-    r'|בדיקות|בודק|איכות|אוטומציה|שחרור|תוכנית|פרויקט|שירותים\s+מקצועיים',
+    r'|בדיקות|בודק|איכות|שחרור|תוכנית|פרויקט|שירותים\s+מקצועיים',
     re.IGNORECASE,
 )
 
@@ -1486,10 +1490,21 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         return any(kw in t for kw in [
             'מנהל', 'manager', 'director', 'head of', 'vp', 'vice president',
             'ראש צוות', 'team lead', 'group leader', 'טים ליד',
+            # "QA Lead" is the same job as "QA Team Leader" and was being
+            # dropped. Spelled out per domain rather than a bare 'lead', which
+            # would also let in "Lead Engineer" and "Tech Lead". The domain word
+            # has to come first, so "Lead QA Engineer" still reads as an IC.
+            'qa lead', 'test lead', 'delivery lead', 'release lead',
+            'program lead', 'project lead', 'pmo lead',
         ]) or ('ראש' in t and 'צוות' not in t)
 
     # Exclude irrelevant job types (hardware/electronics/materials/defense engineering)
     _BAD_TITLE_KW = [
+        # Shaul is not an automation person and does not want to run automation.
+        # This rejects the whole family, "QA Automation Manager" included — his
+        # explicit call on 19/08/2026, accepting that a "QA Manager (Manual &
+        # Automation)" style title goes with it.
+        'automation', 'אוטומציה',
         'v&v', 'validation', 'verification',
         'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
         'composite', 'חומרים', 'materials',
