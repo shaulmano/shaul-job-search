@@ -123,62 +123,104 @@ def _linkedin_fetch_recruiter(job):
     return job
 
 
+# The guest endpoint ignores count= and answers with 10 results whatever you
+# ask for, so a single request only ever saw the first ten postings per role.
+# start= is honoured, and measuring it gave 48-50 unique jobs over five pages
+# against 10 from one. Five pages x nine roles is 45 requests at a 3s throttle,
+# about 160s of the 900s scan budget.
+_LINKEDIN_MAX_PAGES = 5
+_LINKEDIN_PAGE_SIZE = 10
+_LINKEDIN_ENRICH_CAP = 20
+
+
+def _linkedin_page(role, tpr, start):
+    """One page of results. Returns the parsed HTML, or raises after 3 x 429."""
+    url = (
+        'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
+        f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}'
+        f'&start={start}&count=50'
+    )
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=20)
+            if r.status_code == 429:
+                wait = 15 * (attempt + 1)
+                print(f'  [linkedin] 429 — waiting {wait}s before retry...')
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            time.sleep(3)   # throttle: min 3s between LinkedIn requests
+            return r.text
+        except requests.exceptions.HTTPError:
+            if attempt == 2:
+                raise
+    raise Exception('LinkedIn 429 after 3 retries')
+
+
 def search_linkedin(role, time_filter='20h'):
     import concurrent.futures
     tpr = TIME_MAP.get(time_filter, 'r72000')
-    url = (
-        'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
-        f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}&start=0&count=50'
-    )
+
+    jobs, seen_urls = [], set()
     with _LINKEDIN_LOCK:
-        for attempt in range(3):
+        for page in range(_LINKEDIN_MAX_PAGES):
+            start = page * _LINKEDIN_PAGE_SIZE
             try:
-                r = requests.get(url, headers=HEADERS, timeout=20)
-                if r.status_code == 429:
-                    wait = 15 * (attempt + 1)
-                    print(f'  [linkedin] 429 — waiting {wait}s before retry...')
-                    time.sleep(wait)
-                    continue
-                r.raise_for_status()
-                time.sleep(3)   # throttle: min 3s between LinkedIn requests
-                break
-            except requests.exceptions.HTTPError as e:
-                if attempt == 2:
+                html = _linkedin_page(role, tpr, start)
+            except Exception:
+                # Page one failing is a real error; later pages failing just
+                # means this role is done, and what we already have still counts.
+                if page == 0:
                     raise
-        else:
-            raise Exception('LinkedIn 429 after 3 retries')
+                break
 
-    soup = BeautifulSoup(r.text, 'html.parser')
-    jobs = []
-    for card in soup.find_all('li'):
-        title_el   = card.find('h3', class_='base-search-card__title')
-        company_el = card.find('h4', class_='base-search-card__subtitle')
-        link_el    = card.find('a', class_='base-card__full-link')
-        time_el    = card.find('time')
-        loc_el     = card.find('span', class_='job-search-card__location')
+            soup = BeautifulSoup(html, 'html.parser')
+            before = len(jobs)
+            for card in soup.find_all('li'):
+                title_el   = card.find('h3', class_='base-search-card__title')
+                company_el = card.find('h4', class_='base-search-card__subtitle')
+                link_el    = card.find('a', class_='base-card__full-link')
+                time_el    = card.find('time')
+                loc_el     = card.find('span', class_='job-search-card__location')
 
-        if not (title_el and company_el and link_el):
-            continue
+                if not (title_el and company_el and link_el):
+                    continue
 
-        href = link_el.get('href', '').split('?')[0]
-        jobs.append({
-            'title':          title_el.get_text(strip=True),
-            'company':        company_el.get_text(strip=True),
-            'date':           time_el.get('datetime', '')[:10] if time_el else '',
-            'url':            href,
-            'source':         'LinkedIn',
-            'location':       loc_el.get_text(strip=True) if loc_el else 'Israel',
-            'recruiter_name': '',
-            'recruiter_url':  '',
-        })
+                href = link_el.get('href', '').split('?')[0]
+                if href in seen_urls:
+                    continue
+                seen_urls.add(href)
+                jobs.append({
+                    'title':          title_el.get_text(strip=True),
+                    'company':        company_el.get_text(strip=True),
+                    'date':           time_el.get('datetime', '')[:10] if time_el else '',
+                    'url':            href,
+                    'source':         'LinkedIn',
+                    'location':       loc_el.get_text(strip=True) if loc_el else 'Israel',
+                    'recruiter_name': '',
+                    'recruiter_url':  '',
+                })
 
-    # Enrich with recruiter info in parallel (best-effort, 15s budget)
+            # Stop only on an empty page. A short one is not the end of the
+            # results: LinkedIn regularly returns 9 parseable cards out of 10,
+            # and stopping on that cost 39 of the 48 jobs for "Project Manager".
+            if len(jobs) - before == 0:
+                break
+
+    # Enrich with recruiter info in parallel (best-effort, 15s budget).
+    # Paging multiplied the job count by five, and this fires one detail request
+    # per job, so it is capped: past the cap the extra requests are the ones most
+    # likely to earn a 429 on the searches that matter, and the 15s budget was
+    # never going to reach them anyway. Only the title gates decide relevance;
+    # the description this fetches is used solely for the SaaS tag.
     if jobs:
+        head, tail = jobs[:_LINKEDIN_ENRICH_CAP], jobs[_LINKEDIN_ENRICH_CAP:]
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-                jobs = list(ex.map(_linkedin_fetch_recruiter, jobs, timeout=15))
+                head = list(ex.map(_linkedin_fetch_recruiter, head, timeout=15))
         except Exception:
             pass
+        jobs = head + tail
 
     return jobs
 
@@ -1275,6 +1317,12 @@ SCHEDULED_SOURCES = [
 # For scheduled notifications — fast sources only (no Playwright serialization)
 SCHEDULED_SOURCES_FAST = ['linkedin', 'comeet', 'experis']
 
+# Raised from 5000. At ~60 new urls a day the old cap was reached every couple
+# of days, and every prune produced a wave of duplicate notifications. One url
+# is ~110 bytes, so even a full file is a few megabytes, written one url per
+# sorted line so git still merges it cleanly.
+_SEEN_JOBS_CAP = 40000
+
 _seen_jobs_memory: set = set()
 _LOCAL_SEEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'seen_jobs.json')
 _SEEN_JOBS_FILE = '/data/seen_jobs.json' if os.path.isdir('/data') else _LOCAL_SEEN
@@ -1550,9 +1598,27 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters '
           f'({dropped} dropped as off-topic)')
 
-    updated_seen = seen | {j['url'] for j in all_jobs if j.get('url')}
-    if len(updated_seen) > 5000:
-        updated_seen = set(list(updated_seen)[-4000:])
+    # This used to be `set(list(updated_seen)[-4000:])` once past 5000, which
+    # reads as "keep the newest 4000" but is not: a set has no order, so the
+    # slice kept an arbitrary 4000 and threw away ~1000 at random. Anything
+    # dropped that was still listed came back as new the next hour, which is
+    # where the duplicate notifications on 17-18/08/2026 came from.
+    #
+    # Two changes: the cap is high enough that pruning is rare, and when it does
+    # happen the urls seen in this very scan are kept first. Those are the only
+    # ones that can cause a duplicate — a posting nobody lists any more cannot
+    # be re-found, so forgetting it is free.
+    live = {j['url'] for j in all_jobs if j.get('url')}
+    updated_seen = seen | live
+    if len(updated_seen) > _SEEN_JOBS_CAP:
+        keep = set(live)
+        for url in sorted(updated_seen - live):
+            if len(keep) >= _SEEN_JOBS_CAP:
+                break
+            keep.add(url)
+        print(f'[notify] seen_jobs pruned {len(updated_seen) - len(keep)} old urls '
+              f'({len(live)} from this scan kept)')
+        updated_seen = keep
     _save_seen_jobs(updated_seen)
 
     now  = _now_il()
