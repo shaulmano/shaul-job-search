@@ -12,3 +12,10 @@ __pycache__/
 *.pyc
 *.png
 *.log
+
+# CVs and their sources. This repo is public: the files carry a phone number,
+# home town and full employment history. *.pdf already covered the sent copies;
+# *.docx did not, and the cv/ sources would have gone up with the next commit.
+*.docx
+cv/
+cv_v2/
