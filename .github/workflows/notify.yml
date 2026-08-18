@@ -2,7 +2,17 @@ name: Job Search Notify
 
 on:
   schedule:
-    - cron: '0 * * * *'      # every hour, on the hour (UTC)
+    # Every 90 minutes. Paging LinkedIn took the request count per scan from 9
+    # to 45, and its guest endpoint meters on a rolling window — hourly sat
+    # permanently at the limit. 90 minutes is 16 runs a day instead of 24, so
+    # 720 LinkedIn requests instead of 1080, with real recovery time between
+    # bursts. Nothing is lost to the slower cadence: sources are asked for the
+    # last 36 hours, so the overlap is 24x.
+    #
+    # cron has no "every 90 minutes", so it takes two entries: the pattern
+    # repeats every 3 hours, on the hour and then on the half hour.
+    - cron: '0 0,3,6,9,12,15,18,21 * * *'     # 00:00, 03:00, 06:00 ... UTC
+    - cron: '30 1,4,7,10,13,16,19,22 * * *'   # 01:30, 04:30, 07:30 ... UTC
   workflow_dispatch:         # allow manual trigger from GitHub
 
 # Each run commits seen_jobs.json + the HTML snapshot, so runs must never
