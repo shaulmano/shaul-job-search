@@ -12,8 +12,10 @@ from openpyxl import load_workbook, Workbook
 INPUT_FILE  = "C:\\Users\\Shaul\\Documents\\job-search\\companies.xlsx"
 OUTPUT_FILE = "C:\\Users\\Shaul\\Documents\\job-search\\outreach_list.xlsx"
 
-SNOV_USER_ID = "0cf74a351b5f8b55708e0bb76745a7ef"
-SNOV_SECRET  = "103c4cc1874a49cfd582f86132fe5991"
+# These were hardcoded here and this file is tracked in a public repo, so the
+# pair was readable on GitHub from the initial commit until 19/08/2026.
+# Rotate them in snov.io — removing them here does not un-publish the old ones.
+from config import SNOV_CLIENT_ID as SNOV_USER_ID, SNOV_CLIENT_SECRET as SNOV_SECRET
 
 _snov_token = None
 _snov_token_expiry = 0
