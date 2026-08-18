@@ -50,11 +50,14 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python run_notify.py
 
-      - name: Publish jobs.html + seen_jobs.json
+      # jobs.jsonl travels with the other two: the runner is thrown away after
+      # each run, so anything not committed here is lost, and the job records
+      # are what a Telegram button will resolve against later.
+      - name: Publish jobs.html + seen_jobs.json + jobs.jsonl
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add docs seen_jobs.json
-          git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json"
+          git add docs seen_jobs.json jobs.jsonl
+          git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json + jobs.jsonl"
           git pull --rebase --autostash
           git push

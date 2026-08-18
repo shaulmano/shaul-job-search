@@ -6,12 +6,13 @@ Run via start_jobs.bat
 """
 
 import collections
+import hashlib
 import json
 import os
 import re
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 import requests
@@ -1368,6 +1369,116 @@ def _save_seen_jobs(urls: set):
             print(f'  [notify] save seen_jobs failed: {e}')
 
 
+# ── Job records ──────────────────────────────────────────────────────────────
+# seen_jobs.json answers one question — have I reported this url — and answers
+# it well, so it stays as it is. It cannot answer "what was that job", which is
+# what a button in the Telegram message needs: press it an hour later and the
+# only thing coming back is a callback id.
+#
+# Deliberately not stored here: how to apply. The spec assumed each record
+# would carry an apply_type decided during the scan, and that turned out to be
+# impossible — LinkedIn's guest endpoint hides the apply method from a
+# logged-out caller (ten sampled postings, all inconclusive), and LinkedIn is
+# 58% of everything collected. Working it out at apply time is also less waste:
+# most of these are never pressed.
+#
+# JSONL, one record per line, sorted by id. Cloud and local runs both write it,
+# and line-oriented is the only shape the merge=union rule in .gitattributes
+# can resolve without corrupting the file — a pretty-printed JSON object would
+# merge into mismatched braces.
+_LOCAL_JOBS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jobs.jsonl')
+_JOBS_FILE = '/data/jobs.jsonl' if os.path.isdir('/data') else _LOCAL_JOBS
+
+# A posting older than this is almost certainly filled, and a button on it is
+# worse than no button.
+_JOBS_RETENTION_DAYS = 30
+
+
+def _job_id(url: str) -> str:
+    """Short stable id for a posting. Telegram caps callback_data at 64 bytes,
+    so the url itself will not fit. 10 hex chars over a few tens of thousands
+    of records makes a collision vanishingly unlikely."""
+    return hashlib.sha1((url or '').encode('utf-8')).hexdigest()[:10]
+
+
+def _load_jobs() -> dict:
+    """id -> record. Later lines win, so a union merge that duplicates a record
+    resolves to the newer copy instead of failing."""
+    jobs = {}
+    try:
+        with open(_JOBS_FILE, encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue          # a torn line must not lose the whole file
+                if rec.get('id'):
+                    jobs[rec['id']] = rec
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f'  [jobs] load failed: {e}')
+    return jobs
+
+
+def _save_jobs(jobs: dict):
+    try:
+        with open(_JOBS_FILE, 'w', encoding='utf-8') as f:
+            for jid in sorted(jobs):
+                f.write(json.dumps(jobs[jid], ensure_ascii=False,
+                                   sort_keys=True) + '\n')
+    except Exception as e:
+        print(f'  [jobs] save failed: {e}')
+
+
+def _record_jobs(new_jobs: list) -> list:
+    """Store the jobs that were actually reported, and stamp each with its id.
+    Only reported jobs: those are the ones a button can appear on, and keeping
+    every scraped posting would grow the file by hundreds per scan."""
+    jobs = _load_jobs()
+    now = _now_il()
+    stamped = 0
+    for j in new_jobs:
+        url = j.get('url')
+        if not url:
+            continue
+        jid = _job_id(url)
+        j['id'] = jid                          # so the caller can build buttons
+        if jid in jobs:
+            jobs[jid]['last_seen'] = now.isoformat(timespec='seconds')
+            continue
+        jobs[jid] = {
+            'id':             jid,
+            'title':          (j.get('title') or '').strip(),
+            'company':        (j.get('company') or '').strip(),
+            'source':         (j.get('source') or '').strip(),
+            'url':            url,
+            'posted':         j.get('date') or '',
+            'location':       j.get('location') or '',
+            'saas':           bool(_is_saas(j)),
+            'recruiter_name': j.get('recruiter_name') or '',
+            'recruiter_url':  j.get('recruiter_url') or '',
+            'first_seen':     now.isoformat(timespec='seconds'),
+            'last_seen':      now.isoformat(timespec='seconds'),
+            'status':         'new',
+        }
+        stamped += 1
+
+    cutoff = (now - timedelta(days=_JOBS_RETENTION_DAYS)).isoformat()
+    # Anything acted on is kept regardless of age — that is the application
+    # history, and applications.json only holds what was actually submitted.
+    keep = {k: v for k, v in jobs.items()
+            if v.get('status') != 'new' or v.get('first_seen', '') >= cutoff}
+    dropped = len(jobs) - len(keep)
+    _save_jobs(keep)
+    print(f'[jobs] {stamped} recorded, {len(keep)} held'
+          + (f', {dropped} aged out' if dropped else ''))
+    return new_jobs
+
+
 def _send_notification(message: str, parse_mode: str = 'HTML'):
     import urllib.request, json as _json
     token   = os.getenv('TELEGRAM_TOKEN', '')
@@ -1626,6 +1737,12 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     new_jobs = [j for j in new_jobs if j.get('url') not in applied_urls]
     print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters '
           f'({dropped} dropped as off-topic)')
+
+    # Keep a full record of everything about to be reported, and stamp each job
+    # with its id. Nothing downstream reads this yet — it is what a Telegram
+    # button will resolve against once there is something listening for the
+    # press. Purely additive: the message below is built exactly as before.
+    new_jobs = _record_jobs(new_jobs)
 
     # This used to be `set(list(updated_seen)[-4000:])` once past 5000, which
     # reads as "keep the newest 4000" but is not: a set has no order, so the
