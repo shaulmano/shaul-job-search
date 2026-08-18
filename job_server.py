@@ -1174,6 +1174,9 @@ SCHEDULED_ROLES = [
     'QA Manager', 'QA Director', 'Head of QA', 'QA Team Leader',
     'Release Manager', 'Program Manager', 'Project Manager',
     'Professional Services Manager',
+    # Same target as Release Manager and answered with the same CV; the two are
+    # one job under two names depending on the company.
+    'Delivery Manager',
 ]
 
 # Whole-scan budget. The workflow allows 25 minutes; leave room for setup,
@@ -1249,6 +1252,9 @@ _RELEVANT_TITLE_RE = re.compile(
     r'\b(qa|qc|sqa|quality|test|tester|testing|automation|release|releases|pmo'
     r'|program\s+manager|programme\s+manager|program\s+management'
     r'|project\s+manager|project\s+management'
+    # Deliberately the two-word forms, not a bare "delivery": on the Israeli
+    # boards that word alone is mostly couriers and food delivery.
+    r'|delivery\s+manager|delivery\s+management|delivery\s+lead'
     r'|professional\s+services)\b'
     r'|בדיקות|בודק|איכות|אוטומציה|שחרור|תוכנית|פרויקט|שירותים\s+מקצועיים',
     re.IGNORECASE,
