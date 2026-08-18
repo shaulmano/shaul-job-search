@@ -1221,6 +1221,14 @@ SCHEDULED_ROLES = [
     'Delivery Manager',
 ]
 
+# How far back each source is asked to look. The scan runs hourly, so this is
+# almost entirely overlap that seen_jobs throws away — the point is the outage
+# case. At 20h a run of failures longer than that lost those postings for good,
+# with no catch-up anywhere; 36h roughly doubles the tolerance. It costs nothing
+# in notifications, and little in time: every source caps its own result list,
+# so a wider window mostly returns things already seen.
+_SCAN_WINDOW = '36h'
+
 # Whole-scan budget. The workflow allows 25 minutes; leave room for setup,
 # Chromium install and the commit/push that follows.
 _SCAN_BUDGET_SEC = 900
@@ -1302,7 +1310,11 @@ _RELEVANT_TITLE_RE = re.compile(
     # boards that word alone is mostly couriers and food delivery.
     r'|delivery\s+manager|delivery\s+management|delivery\s+lead'
     r'|professional\s+services)\b'
-    r'|בדיקות|בודק|איכות|שחרור|תוכנית|פרויקט|שירותים\s+מקצועיים',
+    # Israeli boards write these roles in transliteration as often as in
+    # Hebrew. "דליברי" is the software sense; food delivery is "משלוחים",
+    # which stays out.
+    r'|בדיקות|בודק|איכות|שחרור|שחרורים|תוכנית|תוכניות|פרויקט|פרויקטים'
+    r'|דליברי|דליוורי|ריליס|ריליז|שירותים\s+מקצועיים',
     re.IGNORECASE,
 )
 
@@ -1469,7 +1481,7 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
                 stats[source]['errors'].append('scraper not registered')
             return
         try:
-            jobs = scraper(role, '20h')
+            jobs = scraper(role, _SCAN_WINDOW)
             raw_n = len(jobs)
             _NOISY = {'experis', 'dialog', 'sqlink', 'malamteam', 'nisha', 'gotfriends', 'jobmaster'}
             if source in _NOISY:
@@ -1581,11 +1593,18 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         'שמירה ואבטחה', 'מוקד שמירה', 'שרותי שמירה', 'אבטחה פיזית',
         'בנייה', 'קבלן', 'שיפוצים', 'ניקיון',
         'קמעונאות', 'סופרמרקט', 'supermarket',
-        'מזון ומשקאות', 'מאפייה', 'מסעדה',
+        # Stems, not whole words: the list said 'מסעדה' and 'מאפייה', which miss
+        # 'מסעדת מזון מהיר' and 'מאפיית X' — and a food company advertising
+        # מנהל בקרת איכות clears the topic gate on איכות.
+        'מזון ומשקאות', 'מאפי', 'מסעד', 'קייטרינג',
         'חקלאות', 'כרייה', 'נדל"ן', 'real estate',
         'הובלה', 'לוגיסטיקה', 'שינוע',
         'בית חולים', 'hospital', 'מרפאה', 'clinic',
-        'ביטוח ישיר', 'הפניקס', 'כלל ביטוח', 'מגדל ביטוח',
+        # The insurers used to be listed here — הפניקס, מגדל, כלל, ביטוח ישיר.
+        # They all run large in-house R&D arms and hire exactly these titles, so
+        # blocking them by name threw away real jobs. The title gates above
+        # already require a QA / release / project / delivery management role,
+        # which is what actually keeps an insurance-sales post out.
     ]
     def _is_hitech(job):
         text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
