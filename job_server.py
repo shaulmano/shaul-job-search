@@ -1565,6 +1565,16 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         # explicit call on 19/08/2026, accepting that a "QA Manager (Manual &
         # Automation)" style title goes with it.
         'automation', 'אוטומציה',
+        # Quality management outside software. A month-wide sweep surfaced
+        # "Head of Quality Assurance (Construction)", "Director Sterile
+        # Operational Quality Assurance" and "Global Quality & Sustainability
+        # Manager" — all of which clear the topic gate on the word quality.
+        # The company list only knew בנייה and קבלן, in Hebrew, so nothing
+        # written in English was caught. Title-level, so a software QA post at
+        # a pharma company is still fine.
+        'construction', 'קבלנ', 'sterile', 'pharmaceutical', 'gmp',
+        'regulatory affairs', 'quality systems', 'sustainability',
+        'תוכנית עסקית', 'פרויקטים הנדסיים',
         'v&v', 'validation', 'verification',
         'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
         'composite', 'חומרים', 'materials',
