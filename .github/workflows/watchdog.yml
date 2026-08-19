@@ -1,0 +1,48 @@
+name: Scan Watchdog
+
+# Deliberately a separate workflow from the scan. A check that lives inside the
+# thing it checks goes quiet at exactly the moment it is needed.
+#
+# Offset to :45 so it never lands on a scan slot, and every 4 hours rather than
+# every 2 — the alert threshold is 4h anyway, so a tighter cadence would only
+# add runs that always find things healthy.
+on:
+  schedule:
+    - cron: '45 1,5,9,13,17,21 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: job-search-watchdog
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write      # to persist watchdog_state.json
+      actions: read        # to read the scan's run history
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check whether the scan has gone quiet
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python watchdog.py
+
+      # Only whether an alert is outstanding, so repeats stay 12h apart instead
+      # of firing on every check for as long as the outage lasts.
+      - name: Persist alert state
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add watchdog_state.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "watchdog state"
+          git pull --rebase --autostash
+          git push
