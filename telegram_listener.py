@@ -186,11 +186,14 @@ def handle_callback(cb):
         job['acted_at'] = _il_now().isoformat(timespec='seconds')
         jobs[jid] = job
         save_jobs(jobs)
+        # applications.json is gitignored — it names where Shaul applied and
+        # this repo is public. Writing it is still right on his own machine;
+        # in the cloud it is a scratch file that dies with the runner, which is
+        # why jobs.jsonl carries the status the scan actually reads.
         record_application(job)
         call('answerCallbackQuery', callback_query_id=cb_id,
              text=f'✅ נרשם: {title}')
-        commit(['jobs.jsonl', 'applications.json'],
-               f'Mark applied: {title}')
+        commit(['jobs.jsonl'], f'Mark applied: {title}')
         return ('applied', job)
 
     if action == ACT_SKIP:

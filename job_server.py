@@ -1775,9 +1775,22 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         return not any(kw in text for kw in _NONTECH)
     new_jobs = [j for j in new_jobs if _is_hitech(j)]
 
-    # Filter out already-applied jobs
-    applied_urls = {a['url'] for a in _load_apps() if a.get('url')}
-    new_jobs = [j for j in new_jobs if j.get('url') not in applied_urls]
+    # Drop anything already dealt with.
+    #
+    # applications.json alone was not enough, and in the cloud it was doing
+    # nothing at all: the file is gitignored, so it is never checked out on the
+    # runner, _load_apps() returns [] and this filter passed everything through.
+    # It only ever worked on Shaul's machine. jobs.jsonl is committed, so the
+    # status a Telegram button sets survives the runner being thrown away —
+    # without this, pressing ✅ would mark a job and it would come straight back
+    # in the next scan.
+    #
+    # Both sources are used: applications.json still holds the 18 entries
+    # recorded by hand before any of this existed.
+    acted = {rec.get('url') for rec in _load_jobs().values()
+             if rec.get('status') in ('applied', 'skipped') and rec.get('url')}
+    acted |= {a['url'] for a in _load_apps() if a.get('url')}
+    new_jobs = [j for j in new_jobs if j.get('url') not in acted]
     print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters '
           f'({dropped} dropped as off-topic)')
 
