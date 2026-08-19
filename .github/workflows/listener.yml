@@ -1,0 +1,48 @@
+name: Telegram Listener
+
+# One long shift rather than a poll every few minutes. GitHub delivers
+# scheduled runs 18-38 minutes late (measured over ten runs of the scan), so a
+# */5 schedule would answer a button press half an hour after the tap. An
+# Actions job can run for six hours and Telegram supports long polling, so a
+# single run answers in about a second.
+#
+# Shifts are 5h45m and start every 5 hours, which leaves overlap to absorb the
+# scheduling delay. Any gap is harmless anyway: Telegram holds updates for 24
+# hours, so a press that lands with nothing listening is delivered as soon as
+# the next shift starts.
+on:
+  schedule:
+    - cron: '0 0,5,10,15,20 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Shift length in seconds'
+        required: false
+        default: '20700'
+
+# Two pollers at once would fight: Telegram answers getUpdates with 409 while
+# another call is open. A new shift replaces the old one, which is safe because
+# every press is committed as it is handled, not batched to the end.
+concurrency:
+  group: job-search-listener
+  cancel-in-progress: true
+
+jobs:
+  listen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Listen for button presses
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python telegram_listener.py --seconds "${{ github.event.inputs.seconds || '20700' }}"

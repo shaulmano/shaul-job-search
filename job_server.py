@@ -1479,7 +1479,8 @@ def _record_jobs(new_jobs: list) -> list:
     return new_jobs
 
 
-def _send_notification(message: str, parse_mode: str = 'HTML'):
+def _send_notification(message: str, parse_mode: str = 'HTML',
+                       reply_markup: dict = None):
     import urllib.request, json as _json
     token   = os.getenv('TELEGRAM_TOKEN', '')
     chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
@@ -1487,12 +1488,15 @@ def _send_notification(message: str, parse_mode: str = 'HTML'):
         print('  [notify] TELEGRAM_TOKEN/TELEGRAM_CHAT_ID not set — skipping')
         return
     url     = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = _json.dumps({
+    body = {
         'chat_id':                  chat_id,
         'text':                     message,
         'parse_mode':               parse_mode,
         'disable_web_page_preview': True,
-    }).encode('utf-8')
+    }
+    if reply_markup:
+        body['reply_markup'] = reply_markup
+    payload = _json.dumps(body).encode('utf-8')
     req = urllib.request.Request(url, data=payload,
                                  headers={'Content-Type': 'application/json'})
     try:
@@ -1509,58 +1513,97 @@ def _esc(s: str) -> str:
 _TG_LIMIT = 4096
 
 
-def _job_line(j) -> str:
+def _job_line(j, n: int = None) -> str:
+    """One job. `n` numbers it so the buttons underneath have something to
+    point at — Telegram attaches a keyboard to a whole message, never to a line
+    inside it, so a numbered list is how a single message stays actionable."""
     title   = _esc((j.get('title') or '').strip()) or '(ללא כותרת)'
     company = _esc((j.get('company') or '').strip())
     source  = _esc((j.get('source') or '').strip())
     url     = _esc((j.get('url') or '').strip())
     tag     = '🟢 SaaS · ' if _is_saas(j) else ''
-    line = f'• <a href="{url}">{title}</a>' if url else f'• {title}'
+    bullet  = f'<b>{n}</b> •' if n else '•'
+    line = f'{bullet} <a href="{url}">{title}</a>' if url else f'{bullet} {title}'
     meta = ' · '.join(x for x in (company, f'<i>{source}</i>' if source else '') if x)
     if meta:
         line += f'\n  {tag}{meta}'
     return line
 
 
+def _job_keyboard(numbered: list) -> dict:
+    """Inline keyboard for the jobs in one message.
+
+    `numbered` is [(n, job)]. Buttons are three to a row: on a phone that is
+    the widest that stays comfortably tappable. callback_data is 'a:<id>',
+    which is 12 bytes against Telegram's 64-byte cap.
+
+    Only "applied" for now, deliberately. This first version marks a job rather
+    than submitting anything, so the whole path — press, poll, record, redraw —
+    gets proven while a mistake still costs nothing.
+    """
+    rows, row = [], []
+    for n, j in numbered:
+        if not j.get('id'):
+            continue
+        row.append({'text': f'✅ {n}', 'callback_data': f'a:{j["id"]}'})
+        if len(row) == 3:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return {'inline_keyboard': rows} if rows else None
+
+
 def _send_sectioned(header: str, sections: list, footer: str = ''):
     """Send headed sections inline, splitting at Telegram's 4096-char limit.
 
-    sections is [(heading, [line, ...])]. The jobs travel inside the message
-    itself so they can never disagree with the count in the header — unlike a
-    link to a page that is published later. When a section spills into another
-    message its heading is repeated, so a split section still reads correctly.
+    sections is [(heading, [(line, job_or_None), ...])]. The jobs travel inside
+    the message itself so they can never disagree with the count in the header
+    — unlike a link to a page that is published later. When a section spills
+    into another message its heading is repeated, so a split section still
+    reads correctly.
+
+    Each part carries the keyboard for its own jobs. That matters once a long
+    run splits: a button in part 2 pointing at a job listed in part 1 would be
+    unusable on a phone.
     """
     budget = _TG_LIMIT - 300          # room for header, part marker and footer
-    msgs, cur = [], ''
+    msgs, cur, cur_jobs = [], '', []
 
     def flush():
-        nonlocal cur
+        nonlocal cur, cur_jobs
         if cur.strip():
-            msgs.append(cur)
-        cur = ''
+            msgs.append((cur, cur_jobs))
+        cur, cur_jobs = '', []
 
-    for heading, lines in sections:
-        if not lines:
+    n = 0
+    for heading, entries in sections:
+        if not entries:
             continue
         block = f'<b>{heading}</b>\n\n'
         if cur and len(cur) + len(block) > budget:
             flush()
         cur += block
-        for line in lines:
+        for line, job in entries:
+            if job is not None:
+                n += 1
+                line = _job_line(job, n)
             piece = line[:budget] + '\n\n'
             if len(cur) + len(piece) > budget:
                 flush()
                 cur = f'<b>{heading}</b> (המשך)\n\n'
             cur += piece
+            if job is not None:
+                cur_jobs.append((n, job))
     flush()
 
     total = len(msgs) or 1
-    for i, body in enumerate(msgs, 1):
+    for i, (body, jobs_here) in enumerate(msgs, 1):
         part = f' ({i}/{total})' if total > 1 else ''
         msg  = f'{header}{part}\n\n{body}'
         if i == total:
             msg += footer
-        _send_notification(msg)
+        _send_notification(msg, reply_markup=_job_keyboard(jobs_here))
 
 
 def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope=''):
@@ -1806,7 +1849,8 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
             return
         header = f'🔍 <b>אין משרות חדשות{scope}</b> — {hour}'
         if problems:
-            _send_sectioned(header, [('⚠️ מקורות ללא תוצאות', problems)])
+            _send_sectioned(header,
+                            [('⚠️ מקורות ללא תוצאות', [(p, None) for p in problems])])
         else:
             _send_notification(header)
         return
@@ -1884,9 +1928,13 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
 
     # Send Telegram: the jobs themselves, inline. The header count and the list
     # come from the same new_jobs, so they can never disagree.
-    sections = [(heading, [_job_line(j) for j in group]) for heading, group in groups]
+    # (line, job): the job rides along so the sender can number it and build a
+    # button for it. The line here is a placeholder — numbering only settles
+    # once the splitter knows which part each job lands in.
+    sections = [(heading, [(None, j) for j in group]) for heading, group in groups]
     if problems:
-        sections.append(('⚠️ מקורות ללא תוצאות', problems))
+        # Plain lines, no job behind them, so they get no number and no button.
+        sections.append(('⚠️ מקורות ללא תוצאות', [(p, None) for p in problems]))
 
     # Link only when this run also publishes the snapshot; locally nothing is
     # pushed, so a link would just serve the previous run's page.
