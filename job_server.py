@@ -1337,6 +1337,11 @@ SCHEDULED_ROLES = [
 # so a wider window mostly returns things already seen.
 _SCAN_WINDOW = '36h'
 
+# Announce the start of a scan in Telegram. Doubles the daily message count to
+# 32, which is why it is a switch: set False and the scan goes back to
+# reporting only its results.
+_SCAN_START_PING = True
+
 # Whole-scan budget. The workflow allows 25 minutes; leave room for setup,
 # Chromium install and the commit/push that follows.
 _SCAN_BUDGET_SEC = 900
@@ -1690,6 +1695,18 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         if status_cb:
             status_cb(msg)
     _status(f'[notify] Starting — {_now_il():%Y-%m-%d %H:%M} IL — sources={",".join(sources)}\n')
+
+    # Shaul asked for a ping when a scan starts. It doubles the daily traffic to
+    # 32 messages, so it says something useful rather than just "started": which
+    # sources are being asked, and when the answer is due. Flip to False to stop
+    # it without touching anything else.
+    if _SCAN_START_PING and not status_cb:
+        _send_notification(
+            f'🔄 <b>סריקה התחילה</b> — {_now_il():%H:%M}\n'
+            f'{len(sources)} מקורות · {len(SCHEDULED_ROLES)} תפקידים\n'
+            f'<i>התוצאות בעוד 5-8 דקות</i>'
+        )
+
     seen  = _load_seen_jobs()
     results = []
     lock    = threading.Lock()
