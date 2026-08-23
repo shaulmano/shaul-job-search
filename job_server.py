@@ -280,28 +280,53 @@ def pw_scrape(url, source, base_url, selectors, title_sel, link_sel,
 
 
 # ── AllJobs ───────────────────────────────────────────────────────────────────
-# position IDs from SearchEngineData.js
+# Position ids, taken from the taxonomy AllJobs ships in
+# /JavaScript/SearchEngineData.js — 1347 categories, each with a live vacancy
+# count. Re-read it if these ever look stale.
+#
+# The previous map was wrong in ways that quietly cost most of this source:
+#   380  is "מנהל פרויקטים באבטחה וביטחון" — the security-guarding trade, not
+#        software. It was what both Project Manager and Program Manager asked
+#        for, which is where the guard-company postings came from.
+#   1554 is "מנהל פרויקטים אבטחת מידע/סייבר", cyber only, 31 vacancies.
+#   432 / 1532 / 1533 / 1913 / 1984 / 2011 are individual-contributor testing
+#        and automation categories — rejected downstream anyway, so every one
+#        of them was scraping pages to throw away.
+# And the two big software project-management categories, 237 and 1548, were
+# never queried at all: 335 vacancies between them.
 _ALLJOBS_POSITION_IDS = {
-    'qa manager':        [824],
-    'qa':                [432, 2011, 1533, 1532],
-    'qa automation':     [2011, 1984, 1913, 1533],
-    'automation':        [2011, 1984, 1913],
-    'qa team lead':      [1365],
-    'head of qa':        [824, 1365],
-    'quality assurance': [824, 432],
-    'tester':            [432, 1532],
-    'project manager':   [380, 1554],
-    'program manager':   [380],
+    'qa manager':                    [824, 1365],   # מנהל איכות | מנהל QA, ראש צוות QA
+    'qa director':                   [824, 1365],
+    'head of qa':                    [824, 1365],
+    'qa team leader':                [1365, 824],
+    'project manager':               [237, 1548, 1187, 759],
+    'program manager':               [237, 1548, 1187],
+    'release manager':               [237, 1548],   # no release-specific category exists
+    'delivery manager':              [237, 1548, 1187],
+    'professional services manager': [1647, 237],   # Professional Services
 }
+
+# 237  מנהל פרויקטים בתוכנה              129 vacancies
+# 1548 מנהל פרויקטים במערכות מידע        206
+# 1187 PMO                                72
+# 759  מנהל פרויקטים במחשבים ורשתות       49
+# 1647 Professional Services              17
+
 
 def _alljobs_position_ids(role):
     r = role.lower().strip()
     if r in _ALLJOBS_POSITION_IDS:
         return _ALLJOBS_POSITION_IDS[r]
-    for key, ids in _ALLJOBS_POSITION_IDS.items():
+    # Substring fallback, longest key first. Iteration order used to decide it,
+    # so "QA Team Leader" matched the bare "qa" entry before "qa team lead" and
+    # got the generic testing categories instead of its own.
+    for key in sorted(_ALLJOBS_POSITION_IDS, key=len, reverse=True):
         if key in r or r in key:
-            return ids
-    return [824]  # default to QA Manager
+            return _ALLJOBS_POSITION_IDS[key]
+    # Falling back to QA for a project role is worse than returning nothing:
+    # it fills the scan with jobs that cannot match and hides the miss.
+    print(f'  [AllJobs] no position id mapped for {role!r} — skipping')
+    return []
 
 def search_alljobs(role, time_filter='20h'):
     if not CURL_CFFI_OK:
@@ -1742,6 +1767,12 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         'construction', 'קבלנ', 'sterile', 'pharmaceutical', 'gmp',
         'regulatory affairs', 'quality systems', 'sustainability',
         'תוכנית עסקית', 'פרויקטים הנדסיים',
+        # AllJobs files software QA and factory-floor quality control under the
+        # same category (824, "מנהל איכות | מנהל QA"), so opening it up brought
+        # in a piping company, a food plant and an industrial manufacturer.
+        # These mark the factory sense; 'תעשייה ביטחונית' deliberately is not
+        # here, since defence-tech postings at Elbit and IAI are on target.
+        'צנרת', 'מפעל', 'תעשייתי', 'מכון התקנים',
         'v&v', 'validation', 'verification',
         'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
         'composite', 'חומרים', 'materials',
