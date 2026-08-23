@@ -1429,9 +1429,15 @@ _RELEVANT_TITLE_RE = re.compile(
 # 'indeed' is deliberately absent: il.indeed.com sits behind Cloudflare and
 # answers 403 + CAPTCHA to every scripted request. It stays in SCRAPERS for
 # manual searches, but on a schedule it only ever contributed latency.
+# 'malamteam' was registered in SCRAPERS but never scheduled, so it had never
+# run. Audited 19/08/2026 it returns 39 rows and 6 survive every filter — more
+# than gotfriends, sqlink or nisha. The other five unscheduled scrapers were
+# audited at the same time and are dead: jobmaster, maof, sela and googlejobs
+# return no rows at all, one1 returns two and neither passes.
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim',
     'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
+    'malamteam',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
