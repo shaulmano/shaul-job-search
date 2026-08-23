@@ -415,9 +415,16 @@ def search_drushim(role, time_filter='20h'):
 
 
 # ── GotFriends ────────────────────────────────────────────────────────────────
+# Keyed by the exact lowercased role, and search_gotfriends returns nothing for
+# a role that is missing — so every entry of SCHEDULED_ROLES has to appear here.
+# 'QA Director', 'QA Team Leader' and 'Delivery Manager' did not, which is three
+# of the nine roles silently scraping nothing at all.
 GOTFRIENDS_ROLE_URLS = {
     'head of qa':               '/jobslobby/qa/head-of-qa-team/',
     'qa manager':               '/jobslobby/qa/qa-team-leader/',
+    'qa director':              '/jobslobby/qa/',
+    'qa team leader':           '/jobslobby/qa/qa-team-leader/',
+    'delivery manager':         '/jobslobby/executive-position/development-manager-jobs/',
     'director of qa':           '/jobslobby/qa/',
     'r&d program manager':      '/jobslobby/executive-position/development-manager-jobs/',
     'technical program manager':'/jobslobby/executive-position/development-manager-jobs/',
@@ -545,12 +552,32 @@ def search_dialog(role, time_filter='20h'):
         return []
     import json as _json
     role_lower = role.lower()
+    # /high-tech/jobs/project-management, which this used for every management
+    # role, is not a category Dialog has — it answered with the generic index,
+    # which is why the source never produced a single on-target job. Measured
+    # 19/08/2026: the real pages carry 17 and 12 matches respectively, Delivery
+    # Manager among them.
     if any(k in role_lower for k in ['qa', 'quality', 'test']):
-        url = 'https://www.dialog.co.il/high-tech/jobs/qa'
+        urls = ['https://www.dialog.co.il/high-tech/jobs/qa']
     elif any(k in role_lower for k in ['program', 'project', 'release', 'delivery', 'pmo']):
-        url = 'https://www.dialog.co.il/high-tech/jobs/project-management'
+        urls = ['https://www.dialog.co.il/high-tech/jobs/software/pm',
+                'https://www.dialog.co.il/high-tech/jobs/data/project-manager']
     else:
-        url = 'https://www.dialog.co.il/high-tech/jobs'
+        urls = ['https://www.dialog.co.il/high-tech/jobs']
+
+    if len(urls) > 1:
+        merged, seen_urls = [], set()
+        for u in urls:
+            for j in _dialog_scrape(u):
+                if j['url'] not in seen_urls:
+                    seen_urls.add(j['url'])
+                    merged.append(j)
+        return merged[:50]
+    return _dialog_scrape(urls[0])
+
+
+def _dialog_scrape(url):
+    import json as _json
     cached = _DIALOG_CACHE.get(url)
     if cached and time.time() - cached[0] < 300:
         print(f'  [Dialog] cached result ({len(cached[1])} jobs)')
@@ -611,27 +638,56 @@ def search_dialog(role, time_filter='20h'):
 
 # ── SQLink ────────────────────────────────────────────────────────────────────
 def search_sqlink(role, time_filter='20h'):
-    url = 'https://www.sqlink.com/%D7%9E%D7%A9%D7%A8%D7%95%D7%AA-%D7%91%D7%94%D7%99%D7%99%D7%98%D7%A7/'
+    """SQLink has no working free-text search — every query parameter tried
+    (?s= ?q= ?search= ?keyword=) returns the same page, and the site's only
+    forms are CV uploads. It does have curated categories, so point the QA
+    roles at the testing one instead of the generic hi-tech index the scraper
+    used for everything."""
+    role_lower = role.lower()
+    if any(k in role_lower for k in ['qa', 'quality', 'test', 'sqa', 'qc']):
+        url = 'https://www.sqlink.com/career/db/'          # בדיקות ואוטומציה
+    else:
+        url = 'https://www.sqlink.com/career/dba/'         # מערכות מידע ותמיכה
     return pw_scrape(
         url=url, source='SQLink', base_url='https://www.sqlink.com',
         selectors=['article', '.job-item', '[class*="job"]', 'li.wpjb-loop-row'],
         title_sel='h2, h3, [class*="title"]',
         link_sel='a',
-        wait_sel='article',
+        wait_sel='a',
     )
 
 
 # ── Nisha ─────────────────────────────────────────────────────────────────────
+_NISHA_ROLE_URLS = {
+    'qa': ['https://www.nisha.co.il/positions/qa-team-leader/',
+           'https://www.nisha.co.il/job-high-tech-qa/'],
+    'mgmt': ['https://www.nisha.co.il/job_cat/seniors/'],
+}
+
+
 def search_nisha(role, time_filter='20h'):
-    url = f'https://www.nisha.co.il/?s={quote(role)}'
-    return pw_scrape(
-        url=url, source='Nisha', base_url='https://www.nisha.co.il',
-        selectors=['article.type-job', '.job_listings li', '[class*="job"]', 'article'],
-        title_sel='h2 a, h3 a, [class*="title"] a, .job-title a, h2, h3',
-        link_sel='a[href*="nisha.co.il"]',
-        date_sel='time, [class*="date"]',
-        wait_sel='article',
-    )
+    """?s= is WordPress' generic site search and it answered "QA Manager" with
+    an economist, an accountant and a biochemistry research assistant — nothing
+    it returned had ever survived the title gates. Nisha's job content lives in
+    curated category pages instead; /positions/qa-team-leader/ alone carries six
+    matches (measured 19/08/2026)."""
+    role_lower = role.lower()
+    key = 'qa' if any(k in role_lower for k in
+                      ['qa', 'quality', 'test', 'sqa', 'qc']) else 'mgmt'
+    merged, seen_urls = [], set()
+    for url in _NISHA_ROLE_URLS[key]:
+        for j in pw_scrape(
+                url=url, source='Nisha', base_url='https://www.nisha.co.il',
+                selectors=['article.type-job', '.job_listings li',
+                           '[class*="job"]', 'article'],
+                title_sel='h2 a, h3 a, [class*="title"] a, .job-title a, h2, h3',
+                link_sel='a[href*="nisha.co.il"]',
+                date_sel='time, [class*="date"]',
+                wait_sel='a'):
+            if j.get('url') and j['url'] not in seen_urls:
+                seen_urls.add(j['url'])
+                merged.append(j)
+    return merged[:50]
 
 
 # ── Jobmaster ─────────────────────────────────────────────────────────────────
@@ -1801,7 +1857,11 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         elif st['raw'] == 0:
             reason = 'רץ תקין, 0 תוצאות'
         elif not unseen_by_label.get(label):
-            reason = f'{st["raw"]} נמצאו, כולן כבר נשלחו בעבר'
+            # Said "already sent" for a year, which was never true: these were
+            # scraped and filtered out, not sent. The wording hid the fact that
+            # Dialog, Nisha and SQLink had never produced a single on-target job
+            # — it read like healthy deduplication instead of a broken scraper.
+            reason = f'{st["raw"]} נסרקו, כולן כבר נראו בסריקה קודמת'
         else:
             reason = (f'{unseen_by_label[label]} חדשות מתוך {st["raw"]}, '
                       f'כולן נפסלו כלא רלוונטיות')
