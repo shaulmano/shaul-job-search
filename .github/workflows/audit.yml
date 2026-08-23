@@ -1,0 +1,41 @@
+name: Source Audit
+
+# A scan report cannot tell "no jobs from Dialog today" apart from "Dialog has
+# been broken for six weeks" — which is exactly how four broken scrapers went
+# unnoticed. This says, once a day, what each source is actually capable of, so
+# silence from one of them can be read correctly.
+on:
+  schedule:
+    - cron: '0 6 * * *'      # 09:00 Israel
+  workflow_dispatch:
+
+concurrency:
+  group: job-search-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml curl_cffi playwright tzdata
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      # Deliberately not failing the workflow when a source is dead: the report
+      # is the point, and a red cross in Actions is not something Shaul watches.
+      # The Telegram message is what he reads.
+      - name: Audit every source
+        continue-on-error: true
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python audit_sources.py --telegram

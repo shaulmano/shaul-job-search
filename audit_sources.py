@@ -124,7 +124,41 @@ def audit(sources, roles, verbose):
         print(f'!! {len(broken)} source(s) produced nothing on target: {", ".join(broken)}')
         print('   A source that scrapes rows but never passes one is a broken')
         print('   scraper, not a quiet market. Check that it receives the role.')
-    return 1 if broken else 0
+    return (1 if broken else 0), summary
+
+
+def telegram_report(summary):
+    """Answer the question the scan message cannot: is every source healthy?
+
+    "No jobs from Dialog today" and "Dialog has been broken for six weeks" look
+    identical in a scan report, which is exactly how four broken scrapers went
+    unnoticed. This states what each source is capable of right now, so silence
+    from one of them can be read correctly.
+    """
+    ok = {s: v for s, v in summary.items() if v[1] > 0}
+    dead = {s: v for s, v in summary.items() if v[1] == 0}
+
+    lines = ['🔧 <b>בדיקת מקורות</b>', '']
+    if ok:
+        lines.append('<b>עובדים</b>')
+        for s, (raw, hits, *_rest) in sorted(ok.items(), key=lambda kv: -kv[1][1]):
+            lines.append(f'• {js._SOURCE_LABELS.get(s, s)} — <b>{hits}</b> בתחום '
+                         f'מתוך {raw} שנסרקו')
+    if dead:
+        lines += ['', '⚠️ <b>לא מייצרים כלום</b>']
+        for s, (raw, _h, deaths, empty, errors) in dead.items():
+            why = (f'שגיאה: {errors[0][:50]}' if errors
+                   else 'לא מחזיר שורות בכלל' if raw == 0
+                   else 'מחזיר שורות, אף אחת לא בתחום')
+            lines.append(f'• {js._SOURCE_LABELS.get(s, s)} — {why}')
+        lines.append('')
+        lines.append('<i>מקור שסורק שורות ואף אחת לא עוברת הוא סקרייפר '
+                     'שבור, לא שוק שקט.</i>')
+
+    total = sum(v[1] for v in summary.values())
+    lines += ['', f'סה"כ <b>{total}</b> משרות בתחום זמינות כרגע']
+    js._send_notification('\n'.join(lines))
+    print(f'[audit] telegram report sent ({len(ok)} ok, {len(dead)} dead)')
 
 
 def main():
@@ -135,12 +169,17 @@ def main():
     ap.add_argument('--role', action='append', help='limit to these roles')
     ap.add_argument('-v', '--verbose', action='store_true',
                     help='per-role detail and sample titles')
+    ap.add_argument('--telegram', action='store_true',
+                    help='send the summary to Telegram as well')
     args = ap.parse_args()
 
     sources = (args.source or
                (list(js.SCRAPERS) if args.all else list(js.SCHEDULED_SOURCES)))
     roles = args.role or list(js.SCHEDULED_ROLES)
-    return audit(sources, roles, args.verbose)
+    rc, summary = audit(sources, roles, args.verbose)
+    if args.telegram:
+        telegram_report(summary)
+    return rc
 
 
 if __name__ == '__main__':
