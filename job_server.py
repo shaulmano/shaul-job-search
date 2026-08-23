@@ -402,16 +402,42 @@ def _drushim_keywords(role):
                 kws.update(he_list)
     return kws
 
+# Seniority words the Drushim search does not reward. Its API matches the whole
+# phrase, so "QA Director", "QA Team Leader" and "Release Manager" each returned
+# nothing at all — no posting is titled exactly that. Querying the role stripped
+# of these as well is the same trick that took Experis from 0 hits to 13.
+_DRUSHIM_STRIP = {'manager', 'director', 'head', 'of', 'team', 'leader', 'lead',
+                  'senior', 'sr', 'vp', 'chief'}
+
+
+def _drushim_terms(role):
+    terms = [role]
+    reduced = ' '.join(w for w in role.split()
+                       if w.lower() not in _DRUSHIM_STRIP)
+    if reduced and reduced.lower() != role.lower():
+        terms.append(reduced)
+    return terms
+
+
 def search_drushim(role, time_filter='20h'):
     if not CURL_CFFI_OK:
         return []
     base = 'https://www.drushim.co.il'
     try:
-        url = f'{base}/api/jobs/search?searchterm={quote(role)}'
-        r = cf_requests.get(url, impersonate='chrome124', timeout=15,
-                            headers={'Referer': base + '/'})
-        data = r.json()
-        result_list = data.get('ResultList', [])
+        result_list, seen_links = [], set()
+        for term in _drushim_terms(role):
+            url = f'{base}/api/jobs/search?searchterm={quote(term)}'
+            r = cf_requests.get(url, impersonate='chrome124', timeout=15,
+                                headers={'Referer': base + '/'})
+            for job in (r.json().get('ResultList') or []):
+                link = (job.get('JobInfo') or {}).get('Link', '')
+                if link and link not in seen_links:
+                    seen_links.add(link)
+                    result_list.append(job)
+            # The full phrase is the precise one; only widen when it found
+            # nothing, so a role that already works keeps its narrower results.
+            if result_list:
+                break
         keywords = _drushim_keywords(role)
         jobs = []
         for job in result_list:
