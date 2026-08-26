@@ -708,6 +708,100 @@ def search_sqlink(role, time_filter='20h'):
     )
 
 
+# ── SecretJobs ────────────────────────────────────────────────────────────────
+# Aggregates the career pages of ~9,000 Israeli companies, which is the one
+# thing LinkedIn and the agency boards do not cover — jobs posted only on a
+# company's own site.
+#
+# It is a paid product, but the job pages themselves are public and advertised
+# in a sitemap for search engines; robots.txt disallows only /api/, /auth/ and
+# /settings/, none of which is touched here. The sitemap is the intended way in.
+#
+# Two sitemaps answer everything, so there is no per-job request at all: the
+# job slug carries the title, and the trailing tokens of that slug are the
+# company's own slug, which the companies sitemap lists. Matching the longest
+# trailing run resolved the company for 229 of 229 candidates when measured.
+_SJ_BASE = 'https://www.secretjobs.ai'
+_SJ_CACHE = {}          # {'jobs': (ts, [urls]), 'companies': (ts, {slugs})}
+_SJ_TTL = 3600          # one fetch serves a whole scan; the file is ~9 MB
+
+_SJ_ROLE_KEYWORDS = {
+    'qa':      ['qa', 'quality', 'test', 'sqa', 'qc'],
+    'project': ['project', 'program', 'programme', 'pmo', 'delivery',
+                'release', 'professional services'],
+}
+
+
+def _sj_sitemap(which):
+    hit = _SJ_CACHE.get(which)
+    if hit and time.time() - hit[0] < _SJ_TTL:
+        return hit[1]
+    url = f'{_SJ_BASE}/{which}-sitemap.xml'
+    r = requests.get(url, headers=HEADERS, timeout=60)
+    r.raise_for_status()
+    locs = [u for u in re.findall(r'<loc>([^<]+)</loc>', r.text) if '/he/' not in u]
+    if which == 'companies':
+        locs = {u.rsplit('/', 1)[-1] for u in locs if '/companies/' in u}
+    print(f'  [SecretJobs] {which} sitemap: {len(locs)} entries')
+    _SJ_CACHE[which] = (time.time(), locs)
+    return locs
+
+
+def _sj_split(slug_url, companies):
+    """Job title and company out of the slug, no extra request."""
+    s = slug_url.rsplit('/', 1)[-1]
+    s = re.sub(r'-[0-9a-f]{6}$', '', s)     # trailing content hash
+    s = re.sub(r'^\d+-', '', s)             # leading listing number
+    parts = s.split('-')
+    for i in range(len(parts)):
+        cand = '-'.join(parts[i:])
+        if cand in companies:
+            title = ' '.join(parts[:i]).strip()
+            return title.title(), cand.replace('-', ' ').title()
+    return s.replace('-', ' ').title(), ''
+
+
+def search_secretjobs(role, time_filter='20h'):
+    """The sitemap carries no lastmod, so time_filter cannot be honoured —
+    every listing looks equally fresh. seen_jobs is what stops repeats, which
+    means the first scan after this ships reports a backlog and later ones only
+    report genuinely new postings."""
+    try:
+        jobs_urls = _sj_sitemap('jobs')
+        companies = _sj_sitemap('companies')
+    except Exception as e:
+        print(f'  [SecretJobs] sitemap fetch failed: {e}')
+        return []
+
+    role_lower = role.lower()
+    key = 'qa' if any(k in role_lower for k in _SJ_ROLE_KEYWORDS['qa']) else 'project'
+    domain = _SJ_ROLE_KEYWORDS[key]
+    mgmt = ['manager', 'director', 'head-of', 'team-lead', 'group-lead', 'lead']
+
+    jobs = []
+    for u in jobs_urls:
+        low = u.lower()
+        if not any(k in low for k in mgmt):
+            continue
+        if not any(k in low for k in domain):
+            continue
+        title, company = _sj_split(u, companies)
+        if len(title) < 4:
+            continue
+        jobs.append({
+            'title': title[:120],
+            'company': company or 'SecretJobs',
+            'date': '',
+            'url': u,
+            'source': 'SecretJobs',
+            'location': 'Israel',
+        })
+    # Higher than the [:50] every other source uses. That cap exists to bound
+    # per-job requests, and this source makes none - the whole answer comes out
+    # of two sitemaps - so truncating here only loses jobs for nothing.
+    return jobs[:200]
+
+
 # ── Nisha ─────────────────────────────────────────────────────────────────────
 _NISHA_ROLE_URLS = {
     'qa': ['https://www.nisha.co.il/positions/qa-team-leader/',
@@ -1316,6 +1410,7 @@ SCRAPERS = {
     'comeet':      search_comeet,
     'googlejobs':  search_google_jobs,
     'jobmaster':   search_jobmaster,
+    'secretjobs':  search_secretjobs,
 }
 
 
@@ -1352,6 +1447,7 @@ _SOURCE_LABELS = {
     'experis': 'Experis', 'dialog': 'Dialog', 'sqlink': 'SQLink',
     'nisha': 'Nisha', 'malamteam': 'MalamTeam', 'maof': 'Maof', 'sela': 'Sela',
     'one1': 'One1', 'googlejobs': 'GoogleJobs', 'jobmaster': 'Jobmaster',
+    'secretjobs': 'SecretJobs',
 }
 
 # Known SaaS companies (Israeli + global names common in the Israeli market).
@@ -1442,7 +1538,7 @@ _RELEVANT_TITLE_RE = re.compile(
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim',
     'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
-    'malamteam',
+    'malamteam', 'secretjobs',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
