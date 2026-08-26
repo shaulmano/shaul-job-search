@@ -724,6 +724,10 @@ def search_sqlink(role, time_filter='20h'):
 _SJ_BASE = 'https://www.secretjobs.ai'
 _SJ_CACHE = {}          # {'jobs': (ts, [urls]), 'companies': (ts, {slugs})}
 _SJ_TTL = 3600          # one fetch serves a whole scan; the file is ~9 MB
+# Seconds to wait after each failed attempt; the last entry is 0 because there
+# is nothing after it. Total patience is about two minutes, against a 900s scan
+# budget, and every other source runs in parallel while this waits.
+_SJ_BACKOFF = [20, 45, 60, 0]
 
 _SJ_ROLE_KEYWORDS = {
     'qa':      ['qa', 'quality', 'test', 'sqa', 'qc'],
@@ -737,24 +741,36 @@ def _sj_sitemap(which):
     if hit and time.time() - hit[0] < _SJ_TTL:
         return hit[1]
     url = f'{_SJ_BASE}/{which}-sitemap.xml'
-    # Answers 200 every time from an Israeli address and 500 from the Actions
-    # runner, so it is the caller's address or load rather than the request.
-    # Retry with backoff; if it still fails the exception propagates, because a
-    # source that returns [] on error gets reported as "ran fine, 0 results" and
-    # that is the exact disguise four broken scrapers hid behind for weeks.
+    # Served by Vercel and generated on demand. From an Israeli address the
+    # edge has it cached (X-Vercel-Cache: HIT, 0.33 MB brotli on the wire) and
+    # it lands in under a second; from the Actions runner in the US the edge
+    # misses, Vercel regenerates, and the gateway times out at 504.
+    #
+    # A failed request still starts that regeneration, so the fix is patience
+    # rather than force: wait long enough for the cache to warm and ask again.
+    # Backoff is in tens of seconds, not the 5s that was plainly too short.
+    #
+    # If it still fails the exception propagates. A source that returns [] on
+    # error gets reported as "ran fine, 0 results", which is the exact disguise
+    # four broken scrapers hid behind for weeks.
     last = None
-    for attempt in range(3):
+    for attempt, wait in enumerate(_SJ_BACKOFF):
         try:
             r = requests.get(url, headers=HEADERS, timeout=90)
             r.raise_for_status()
+            if attempt:
+                print(f'  [SecretJobs] {which} recovered on attempt {attempt + 1}')
             break
         except Exception as e:
             last = e
-            print(f'  [SecretJobs] {which} attempt {attempt + 1}/3: {e}')
-            if attempt < 2:
-                time.sleep(5 * (attempt + 1))
+            print(f'  [SecretJobs] {which} attempt {attempt + 1}'
+                  f'/{len(_SJ_BACKOFF)}: {str(e)[:70]}')
+            if wait:
+                time.sleep(wait)
     else:
-        raise RuntimeError(f'{which} sitemap unreachable after 3 tries: {last}')
+        raise RuntimeError(
+            f'{which} sitemap unreachable after {len(_SJ_BACKOFF)} tries '
+            f'(Vercel cache miss from this region): {last}')
     locs = [u for u in re.findall(r'<loc>([^<]+)</loc>', r.text) if '/he/' not in u]
     if which == 'companies':
         locs = {u.rsplit('/', 1)[-1] for u in locs if '/companies/' in u}
