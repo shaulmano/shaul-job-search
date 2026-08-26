@@ -36,6 +36,11 @@ try:
 except ImportError:
     CURL_CFFI_OK = False
 
+# Shaul's rule, 26/08/2026: nothing older than two days from the day of the
+# scan. Applied wherever a source states a date - some give none, and those
+# ride on _SCAN_WINDOW instead, which is the closest thing to a date they have.
+_MAX_JOB_AGE_DAYS = 2
+
 PORT = int(os.environ.get('PORT', 8765))
 PW_SEMAPHORE = threading.Semaphore(1)       # max 1 Chromium instance at once
 _LINKEDIN_LOCK = threading.Semaphore(1)     # max 1 LinkedIn request at a time
@@ -729,6 +734,21 @@ _SJ_TTL = 3600          # one fetch serves a whole scan; the file is ~9 MB
 # budget, and every other source runs in parallel while this waits.
 _SJ_BACKOFF = [20, 45, 60, 0]
 
+# Their sitemap has no dates, and measuring 25 of the jobs it produced gave a
+# median age of 49 days: only 3 in 25 were within a fortnight and half were over
+# two months old. Shaul clicked one and LinkedIn said it had closed a month ago.
+# Each job page does carry "datePosted", so freshness is checkable - it just
+# costs a request per posting, which is why the dates are cached forever below.
+# Shaul, 26/08: at most two days back from the day of the scan. A week-old
+# posting is of no interest, and measuring this source gave a median age of 49
+# days, so without this gate it is mostly a graveyard.
+_SJ_MAX_AGE_DAYS = _MAX_JOB_AGE_DAYS
+# Date lookups per scan. Each job is fetched once ever and remembered, so this
+# only paces the initial fill; at 16 scans a day the candidate set dates itself
+# within a day. Anything unchecked waits for the next scan rather than being
+# guessed at.
+_SJ_DATE_BUDGET = 120
+
 _SJ_ROLE_KEYWORDS = {
     'qa':      ['qa', 'quality', 'test', 'sqa', 'qc'],
     'project': ['project', 'program', 'programme', 'pmo', 'delivery',
@@ -836,6 +856,43 @@ def _sj_split(slug_url, companies):
     return s.replace('-', ' ').title(), ''
 
 
+
+def _sj_dates():
+    try:
+        with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+            return json.load(f).get('dates') or {}
+    except Exception:
+        return {}
+
+
+def _sj_store_dates(dates):
+    try:
+        try:
+            with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        data['dates'] = dates
+        with open(_SJ_SNAPSHOT, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=0)
+    except Exception as e:
+        print(f'  [SecretJobs] could not store dates: {e}')
+
+
+def _sj_posted(url, dates):
+    """datePosted off the job page. Cached forever - a posting's date never
+    changes, so each job is fetched at most once ever."""
+    if url in dates:
+        return dates[url]
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        m = re.search(r'"datePosted"\s*:\s*"(\d{4}-\d{2}-\d{2})', r.text)
+        dates[url] = m.group(1) if m else ''
+    except Exception:
+        dates[url] = ''
+    return dates[url]
+
+
 def search_secretjobs(role, time_filter='20h'):
     """The sitemap carries no lastmod, so time_filter cannot be honoured —
     every listing looks equally fresh. seen_jobs is what stops repeats, which
@@ -853,7 +910,7 @@ def search_secretjobs(role, time_filter='20h'):
     domain = _SJ_ROLE_KEYWORDS[key]
     mgmt = ['manager', 'director', 'head-of', 'team-lead', 'group-lead', 'lead']
 
-    jobs = []
+    candidates = []
     for u in jobs_urls:
         low = u.lower()
         if not any(k in low for k in mgmt):
@@ -863,14 +920,43 @@ def search_secretjobs(role, time_filter='20h'):
         title, company = _sj_split(u, companies)
         if len(title) < 4:
             continue
+        candidates.append((u, title, company))
+
+    # Age gate. Without it this source is mostly a graveyard: measured median
+    # age 49 days, 48% over two months. Dates are cached forever, so the cost
+    # is one request per posting ever, and the budget stops a cold start from
+    # firing hundreds at once - anything unchecked simply waits for the next scan.
+    dates = _sj_dates()
+    spent, before = 0, len(dates)
+    cutoff = (_now_il().date() - timedelta(days=_SJ_MAX_AGE_DAYS)).isoformat()
+    jobs, stale, unknown = [], 0, 0
+    for u, title, company in candidates:
+        posted = dates.get(u)
+        if posted is None:
+            if spent >= _SJ_DATE_BUDGET:
+                unknown += 1
+                continue
+            posted = _sj_posted(u, dates)
+            spent += 1
+        if not posted:
+            unknown += 1
+            continue
+        if posted < cutoff:
+            stale += 1
+            continue
         jobs.append({
             'title': title[:120],
             'company': company or 'SecretJobs',
-            'date': '',
+            'date': posted,
             'url': u,
             'source': 'SecretJobs',
             'location': 'Israel',
         })
+    if len(dates) != before:
+        _sj_store_dates(dates)
+    if stale or unknown:
+        print(f'  [SecretJobs] {role}: {len(jobs)} fresh, {stale} older than '
+              f'{_SJ_MAX_AGE_DAYS}d, {unknown} undated ({spent} lookups)')
     # Higher than the [:50] every other source uses. That cap exists to bound
     # per-job requests, and this source makes none - the whole answer comes out
     # of two sitemaps - so truncating here only loses jobs for nothing.
@@ -2038,6 +2124,18 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
         return not any(kw in text for kw in _NONTECH)
     new_jobs = [j for j in new_jobs if _is_hitech(j)]
+
+    # Age gate. Sources that state a date get held to Shaul's two-day rule; the
+    # ones that state none pass here and are bounded by _SCAN_WINDOW instead.
+    # SecretJobs made the case for this: its listings had a median age of 49
+    # days and he clicked one that had closed a month earlier.
+    _cutoff = (_now_il().date() - timedelta(days=_MAX_JOB_AGE_DAYS)).isoformat()
+    _before_age = len(new_jobs)
+    new_jobs = [j for j in new_jobs
+                if not (j.get('date') or '') or (j['date'][:10] >= _cutoff)]
+    _aged_out = _before_age - len(new_jobs)
+    if _aged_out:
+        print(f'[notify] {_aged_out} dropped as older than {_MAX_JOB_AGE_DAYS} days')
 
     # Drop anything already dealt with.
     #
