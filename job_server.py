@@ -757,10 +757,12 @@ _SJ_DATE_BUDGET = 120
 # the pace is deliberate and every answer is cached forever.
 _SJ_RESOLVE_BUDGET = 6        # per scan; the rest keep the search link and wait
 _SJ_RESOLVE_PAUSE = 15        # seconds between queries, to stay under the 429
-_SJ_ATS = ('comeet.com', 'greenhouse.io', 'lever.co', 'workable.com',
-           'smartrecruiters.com', 'myworkdayjobs.com', 'bamboohr.com',
-           'jobvite.com', 'ashbyhq.com', 'rippling.com', 'careers.', 'jobs.',
-           'apply.')
+# Real applicant tracking systems only. 'careers.' and 'jobs.' used to be in
+# here, which is how a company's careers homepage scored as if it were a posting.
+_SJ_ATS_PLATFORMS = ('comeet.com', 'greenhouse.io', 'lever.co', 'workable.com',
+                     'smartrecruiters.com', 'myworkdayjobs.com', 'bamboohr.com',
+                     'jobvite.com', 'ashbyhq.com', 'rippling.com', 'teamtailor.com',
+                     'recruitee.com', 'breezy.hr', 'applytojob.com')
 _SJ_NOT_A_POSTING = ('secretjobs.ai', 'facebook.com', 'youtube.com', 'x.com',
                      'twitter.com', 'glassdoor', 'indeed.com', 'brave.com',
                      'wikipedia.org', 'crunchbase.com', 'zoominfo.com')
@@ -952,27 +954,50 @@ def _sj_resolve(title, company):
         print(f'  [SecretJobs] resolve failed: {type(e).__name__}')
         return ''
 
+    # Ranked for whether the link actually opens on the job, which is not the
+    # same as whether it belongs to the company. Ranking the company's domain
+    # highest is what produced a Check Point session url that errored and
+    # Immunai's front page: both were theirs, neither was the posting.
+    #
+    # An applicant tracking system is always a specific posting and always
+    # renders. A LinkedIn job page renders too, and says so when the job has
+    # closed. A company's own site is worth the most only when the url looks
+    # like one job rather than a careers index.
     slug = re.sub(r'[^a-z]', '', (company or '').lower())
     best, best_score = '', 0
     seen = set()
     for a in soup.select('a[href^="http"]'):
         h = (a.get('href') or '').split('#')[0]
         host = urlparse(h).netloc.lower()
+        path = urlparse(h).path
         if not host or h in seen or any(x in host for x in _SJ_NOT_A_POSTING):
             continue
         seen.add(h)
+
+        # does the url point at one posting, or at a list of them?
+        specific = bool(re.search(r'/(?:jobs?|positions?|vacanc\w*|opening)s?/'
+                                  r'[\w%-]{4,}', path, re.I)
+                        or re.search(r'\d{4,}', path))
+        index_page = bool(re.fullmatch(r'/?(?:careers?|jobs?|vacancies)/?', path, re.I))
+
         score = 0
-        if slug and slug[:9] in re.sub(r'[^a-z]', '', host):
-            score += 10
-        if any(x in host for x in _SJ_ATS):
-            score += 6
-        if 'linkedin.com/jobs' in h:
-            score += 3
-        if re.search(r'/job|/career|/position|/vacan', h, re.I):
+        if any(x in host for x in _SJ_ATS_PLATFORMS):
+            score += 12                      # comeet, greenhouse, lever...
+        elif 'linkedin.com/jobs/view' in h:
+            score += 9                       # always opens, says if it closed
+        elif slug and slug[:9] in re.sub(r'[^a-z]', '', host):
+            score += 6 if specific else 1    # their own site, but only if precise
+        if specific:
             score += 4
+        if index_page:
+            score -= 6                       # a careers index is not a posting
+        if '?' in h and 'linkedin' not in host:
+            score -= 3                       # query-string urls are often session-bound
         if score > best_score:
             best, best_score = h, score
-    return best if best_score >= 4 else ''
+
+    # Below this a search link serves him better than a guess.
+    return best if best_score >= 9 else ''
 
 
 
