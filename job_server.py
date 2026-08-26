@@ -934,6 +934,71 @@ def _sj_store_links(links):
         print(f'  [SecretJobs] could not store links: {e}')
 
 
+
+# What one posting looks like on each platform, as opposed to a company's board.
+# Comeet is the reason this exists: it writes a board as /jobs/immunai/37.009 and
+# a job as /jobs/abra_rnd/15.007/project-manager/9F.07A, and 37.009 looks exactly
+# like a job id - only the depth separates them. Its pages are React, so fetching
+# and reading them settles nothing either.
+_SJ_POSTING_PATHS = {
+    'comeet.com':          r'^/jobs/[^/]+/[^/]+/[^/]+/[^/]+',
+    'greenhouse.io':       r'^/[^/]+/jobs/\d{4,}',
+    'lever.co':            r'^/[^/]+/[0-9a-f-]{16,}',
+    'linkedin.com':        r'^/jobs/view/',
+    'workable.com':        r'^/[^/]+/j/[0-9A-F]{6,}',
+    'smartrecruiters.com': r'^/[^/]+/\d{6,}',
+    'ashbyhq.com':         r'^/[^/]+/[0-9a-f-]{16,}',
+    'teamtailor.com':      r'^/jobs/\d+',
+    'recruitee.com':       r'^/o/[^/]+',
+    'myworkdayjobs.com':   r'/job/',
+}
+
+
+def _sj_known_platform_posting(url):
+    """True / False for a platform we have a rule for, None for anything else."""
+    pr = urlparse(url)
+    for host, pat in _SJ_POSTING_PATHS.items():
+        if host in pr.netloc.lower():
+            return bool(re.search(pat, pr.path, re.I))
+    return None
+
+
+def _sj_is_posting(url, title):
+    """Open the candidate and check it is one job, not a board.
+
+    Pattern matching cannot tell them apart: Comeet writes a board as
+    /jobs/immunai/37.009 and a job as /jobs/abra_rnd/15.007/project-manager/9F.07A,
+    and 37.009 looks exactly like a job id. Only the page itself settles it,
+    and since a resolution happens once per job and is cached forever, one
+    extra request is worth paying for a link that lands.
+    """
+    known = _sj_known_platform_posting(url)
+    if known is not None:
+        return known          # its url shape is definitive; the page is React anyway
+
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=20, allow_redirects=True)
+        if r.status_code >= 400:
+            return False
+        body = r.text
+    except Exception:
+        return False
+
+    # A single posting says so in its structured data.
+    if re.search(r'"@type"\s*:\s*"JobPosting"', body):
+        return True
+
+    # Otherwise: the job's own words should be on the page, and it should not
+    # read like a list of many openings.
+    words = [w for w in re.findall(r'[A-Za-z]{4,}', title)][:4]
+    low = body.lower()
+    matched = sum(1 for w in words if w.lower() in low)
+    board_markers = sum(low.count(m) for m in
+                        ('all positions', 'open positions', 'view all jobs',
+                         'כל המשרות', 'משרות פתוחות'))
+    return matched >= max(2, len(words) - 1) and board_markers == 0
+
+
 def _sj_resolve(title, company):
     """The employer's own posting, or '' if the search does not find one.
 
@@ -964,7 +1029,7 @@ def _sj_resolve(title, company):
     # closed. A company's own site is worth the most only when the url looks
     # like one job rather than a careers index.
     slug = re.sub(r'[^a-z]', '', (company or '').lower())
-    best, best_score = '', 0
+    ranked, best_score = [], 0
     seen = set()
     for a in soup.select('a[href^="http"]'):
         h = (a.get('href') or '').split('#')[0]
@@ -994,10 +1059,18 @@ def _sj_resolve(title, company):
         if '?' in h and 'linkedin' not in host:
             score -= 3                       # query-string urls are often session-bound
         if score > best_score:
-            best, best_score = h, score
+            ranked.append((score, h))
+    ranked.sort(reverse=True)
 
-    # Below this a search link serves him better than a guess.
-    return best if best_score >= 9 else ''
+    # Try the best few in order and take the first that is really a posting.
+    # Below the threshold a search link serves him better than a guess.
+    for score, h in ranked[:3]:
+        if score < 9:
+            break
+        if _sj_is_posting(h, title):
+            return h
+        print(f'  [SecretJobs] {urlparse(h).netloc} is not a single posting, skipping')
+    return ''
 
 
 
