@@ -737,8 +737,24 @@ def _sj_sitemap(which):
     if hit and time.time() - hit[0] < _SJ_TTL:
         return hit[1]
     url = f'{_SJ_BASE}/{which}-sitemap.xml'
-    r = requests.get(url, headers=HEADERS, timeout=60)
-    r.raise_for_status()
+    # Answers 200 every time from an Israeli address and 500 from the Actions
+    # runner, so it is the caller's address or load rather than the request.
+    # Retry with backoff; if it still fails the exception propagates, because a
+    # source that returns [] on error gets reported as "ran fine, 0 results" and
+    # that is the exact disguise four broken scrapers hid behind for weeks.
+    last = None
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=90)
+            r.raise_for_status()
+            break
+        except Exception as e:
+            last = e
+            print(f'  [SecretJobs] {which} attempt {attempt + 1}/3: {e}')
+            if attempt < 2:
+                time.sleep(5 * (attempt + 1))
+    else:
+        raise RuntimeError(f'{which} sitemap unreachable after 3 tries: {last}')
     locs = [u for u in re.findall(r'<loc>([^<]+)</loc>', r.text) if '/he/' not in u]
     if which == 'companies':
         locs = {u.rsplit('/', 1)[-1] for u in locs if '/companies/' in u}
@@ -766,12 +782,12 @@ def search_secretjobs(role, time_filter='20h'):
     every listing looks equally fresh. seen_jobs is what stops repeats, which
     means the first scan after this ships reports a backlog and later ones only
     report genuinely new postings."""
-    try:
-        jobs_urls = _sj_sitemap('jobs')
-        companies = _sj_sitemap('companies')
-    except Exception as e:
-        print(f'  [SecretJobs] sitemap fetch failed: {e}')
-        return []
+    # Deliberately not caught. fetch() in _run_notify_job records the exception
+    # and the Telegram status line then says "שגיאה" instead of "רץ תקין, 0
+    # תוצאות" - the difference between knowing a source is broken and believing
+    # the market was quiet.
+    jobs_urls = _sj_sitemap('jobs')
+    companies = _sj_sitemap('companies')
 
     role_lower = role.lower()
     key = 'qa' if any(k in role_lower for k in _SJ_ROLE_KEYWORDS['qa']) else 'project'
