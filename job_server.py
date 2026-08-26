@@ -749,6 +749,22 @@ _SJ_MAX_AGE_DAYS = _MAX_JOB_AGE_DAYS
 # guessed at.
 _SJ_DATE_BUDGET = 120
 
+# Resolving the employer's own posting. A scoped search link worked but cost
+# Shaul three clicks - Google, then the result, then the job - so the search is
+# done here instead and he gets the final url. Brave is the only engine that
+# answers a scripted query at all (Bing, Google, DuckDuckGo, Startpage and
+# Mojeek all return nothing or block), and it rate-limits after about two, so
+# the pace is deliberate and every answer is cached forever.
+_SJ_RESOLVE_BUDGET = 6        # per scan; the rest keep the search link and wait
+_SJ_RESOLVE_PAUSE = 15        # seconds between queries, to stay under the 429
+_SJ_ATS = ('comeet.com', 'greenhouse.io', 'lever.co', 'workable.com',
+           'smartrecruiters.com', 'myworkdayjobs.com', 'bamboohr.com',
+           'jobvite.com', 'ashbyhq.com', 'rippling.com', 'careers.', 'jobs.',
+           'apply.')
+_SJ_NOT_A_POSTING = ('secretjobs.ai', 'facebook.com', 'youtube.com', 'x.com',
+                     'twitter.com', 'glassdoor', 'indeed.com', 'brave.com',
+                     'wikipedia.org', 'crunchbase.com', 'zoominfo.com')
+
 _SJ_ROLE_KEYWORDS = {
     'qa':      ['qa', 'quality', 'test', 'sqa', 'qc'],
     'project': ['project', 'program', 'programme', 'pmo', 'delivery',
@@ -893,6 +909,106 @@ def _sj_posted(url, dates):
     return dates[url]
 
 
+
+def _sj_links():
+    try:
+        with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+            return json.load(f).get('links') or {}
+    except Exception:
+        return {}
+
+
+def _sj_store_links(links):
+    try:
+        try:
+            with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        data['links'] = links
+        with open(_SJ_SNAPSHOT, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=0)
+    except Exception as e:
+        print(f'  [SecretJobs] could not store links: {e}')
+
+
+def _sj_resolve(title, company):
+    """The employer's own posting, or '' if the search does not find one.
+
+    Ranked rather than taken first: the company's own domain beats an applicant
+    tracking system, which beats a LinkedIn posting, and a url that looks like a
+    job page beats one that does not."""
+    if not CURL_CFFI_OK:
+        return ''
+    q = f'"{title}" "{company}"' if company and company != 'SecretJobs' else f'"{title}"'
+    try:
+        r = cf_requests.get(f'https://search.brave.com/search?q={quote(q)}',
+                            impersonate='chrome124', timeout=25)
+        if r.status_code != 200:
+            print(f'  [SecretJobs] resolve: HTTP {r.status_code}')
+            return ''
+        soup = BeautifulSoup(r.text, 'html.parser')
+    except Exception as e:
+        print(f'  [SecretJobs] resolve failed: {type(e).__name__}')
+        return ''
+
+    slug = re.sub(r'[^a-z]', '', (company or '').lower())
+    best, best_score = '', 0
+    seen = set()
+    for a in soup.select('a[href^="http"]'):
+        h = (a.get('href') or '').split('#')[0]
+        host = urlparse(h).netloc.lower()
+        if not host or h in seen or any(x in host for x in _SJ_NOT_A_POSTING):
+            continue
+        seen.add(h)
+        score = 0
+        if slug and slug[:9] in re.sub(r'[^a-z]', '', host):
+            score += 10
+        if any(x in host for x in _SJ_ATS):
+            score += 6
+        if 'linkedin.com/jobs' in h:
+            score += 3
+        if re.search(r'/job|/career|/position|/vacan', h, re.I):
+            score += 4
+        if score > best_score:
+            best, best_score = h, score
+    return best if best_score >= 4 else ''
+
+
+
+class _SjBudget:
+    """How many search queries this scan may still spend. Brave rate-limits at
+    about two in a row, so the pace matters as much as the count."""
+
+    def __init__(self, n):
+        self.left = n
+
+    def take(self):
+        if self.left <= 0:
+            return False
+        self.left -= 1
+        return True
+
+
+def _sj_link_for(url, title, company, links, budget):
+    """Where to send the reader. The employer's own posting once it is known,
+    a scoped search until then - never their paywall."""
+    known = links.get(url)
+    if known:
+        return known
+    if known == '':
+        return _sj_search_link(title, company)   # searched before, found nothing
+    if not budget.take():
+        return _sj_search_link(title, company)   # out of budget, try next scan
+    if budget.left < _SJ_RESOLVE_BUDGET - 1:
+        time.sleep(_SJ_RESOLVE_PAUSE)
+    found = _sj_resolve(title, company)
+    links[url] = found
+    if found:
+        print(f'  [SecretJobs] resolved: {title[:34]} -> {urlparse(found).netloc}')
+    return found or _sj_search_link(title, company)
+
+
 def _sj_search_link(title, company):
     from urllib.parse import quote_plus
     q = f'"{title}" "{company}"' if company and company != 'SecretJobs' else f'"{title}"'
@@ -933,7 +1049,10 @@ def search_secretjobs(role, time_filter='20h'):
     # is one request per posting ever, and the budget stops a cold start from
     # firing hundreds at once - anything unchecked simply waits for the next scan.
     dates = _sj_dates()
+    links = _sj_links()
     spent, before = 0, len(dates)
+    links_before = len(links)
+    budget = _SjBudget(_SJ_RESOLVE_BUDGET)
     cutoff = (_now_il().date() - timedelta(days=_SJ_MAX_AGE_DAYS)).isoformat()
     jobs, stale, unknown = [], 0, 0
     for u, title, company in candidates:
@@ -959,12 +1078,14 @@ def search_secretjobs(role, time_filter='20h'):
             # verified on both the job and company pages, neither has a single
             # outbound link. Title and company are exact, though, so a scoped
             # search lands on the company's own posting in one click.
-            'link': _sj_search_link(title, company),
+            'link': _sj_link_for(u, title, company, links, budget),
             'source': 'SecretJobs',
             'location': 'Israel',
         })
     if len(dates) != before:
         _sj_store_dates(dates)
+    if len(links) != links_before:
+        _sj_store_links(links)
     if stale or unknown:
         print(f'  [SecretJobs] {role}: {len(jobs)} fresh, {stale} older than '
               f'{_SJ_MAX_AGE_DAYS}d, {unknown} undated ({spent} lookups)')
