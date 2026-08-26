@@ -10,7 +10,7 @@ import os
 import re
 import threading
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, quote
 import requests
 from bs4 import BeautifulSoup
@@ -1105,6 +1105,237 @@ SCRAPERS = {
 }
 
 
+# ── Scheduled WhatsApp notifications ─────────────────────────────────────────
+SCHEDULED_ROLES = [
+    'Head of QA', 'QA Manager', 'Director of QA',
+    'R&D Program Manager', 'Technical Program Manager', 'Program Manager',
+    'Project Manager', 'PMO Manager', 'Release Manager',
+    'Professional Services Manager',
+]
+
+SCHEDULED_SOURCES = [
+    'linkedin', 'indeed', 'alljobs', 'drushim',
+    'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
+]
+
+# For scheduled notifications — fast sources only (no Playwright serialization)
+SCHEDULED_SOURCES_FAST = ['linkedin', 'comeet', 'indeed']
+
+_seen_jobs_memory: set = set()
+_LOCAL_SEEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'seen_jobs.json')
+_SEEN_JOBS_FILE = '/data/seen_jobs.json' if os.path.isdir('/data') else _LOCAL_SEEN
+
+
+def _load_seen_jobs():
+    global _seen_jobs_memory
+    if _SEEN_JOBS_FILE:
+        try:
+            with open(_SEEN_JOBS_FILE) as f:
+                _seen_jobs_memory = set(json.load(f).get('urls', []))
+        except Exception:
+            pass
+    return _seen_jobs_memory
+
+
+def _save_seen_jobs(urls: set):
+    global _seen_jobs_memory
+    _seen_jobs_memory = urls
+    if _SEEN_JOBS_FILE:
+        try:
+            with open(_SEEN_JOBS_FILE, 'w') as f:
+                json.dump({'urls': sorted(urls)}, f)
+        except Exception as e:
+            print(f'  [notify] save seen_jobs failed: {e}')
+
+
+def _send_notification(message: str, parse_mode: str = 'HTML'):
+    import urllib.request, json as _json
+    token   = os.getenv('TELEGRAM_TOKEN', '')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
+    if not token or not chat_id:
+        print('  [notify] TELEGRAM_TOKEN/TELEGRAM_CHAT_ID not set — skipping')
+        return
+    url     = f'https://api.telegram.org/bot{token}/sendMessage'
+    payload = _json.dumps({
+        'chat_id':                  chat_id,
+        'text':                     message,
+        'parse_mode':               parse_mode,
+        'disable_web_page_preview': True,
+    }).encode('utf-8')
+    req = urllib.request.Request(url, data=payload,
+                                 headers={'Content-Type': 'application/json'})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            print(f'  [notify] Telegram sent (HTTP {r.status})')
+    except Exception as e:
+        print(f'  [notify] Telegram error: {e}')
+
+
+def _esc(s: str) -> str:
+    return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def _run_notify_job(status_cb=None):
+    def _status(msg):
+        print(msg, end='')
+        if status_cb:
+            status_cb(msg)
+    _status(f'[notify] Starting — {time.strftime("%Y-%m-%d %H:%M")}\n')
+    seen  = _load_seen_jobs()
+    results = []
+    lock    = threading.Lock()
+
+    def fetch(source, role):
+        scraper = SCRAPERS.get(source)
+        if not scraper:
+            return
+        try:
+            jobs = scraper(role, '20h')
+            _NOISY = {'experis', 'dialog', 'sqlink', 'malamteam', 'nisha', 'gotfriends', 'jobmaster'}
+            if source in _NOISY:
+                role_l = role.lower()
+                if any(k in role_l for k in ['qa', 'quality', 'test', 'automation', 'sqa', 'qc']):
+                    kws = {'qa', 'quality', 'בדיקות', 'test', 'automation', 'אוטומציה', 'איכות', 'qc', 'sqa'}
+                elif any(k in role_l for k in ['project', 'program', 'pmo', 'delivery', 'release', 'scrum',
+                                                'professional services', 'release']):
+                    kws = {'project', 'program', 'פרויקט', 'pm', 'pmo', 'תוכנית', 'programme',
+                           'delivery', 'release', 'scrum', 'agile', 'ניהול פרויקט', 'מנהל פרויקט',
+                           'professional services', 'services'}
+                else:
+                    kws = _drushim_keywords(role)
+                jobs = [j for j in jobs
+                        if any(kw in (j.get('title', '') + ' ' + j.get('company', '')).lower()
+                               for kw in kws)]
+            with lock:
+                results.extend(jobs)
+        except Exception as e:
+            print(f'  [notify] {source}/{role} error: {e}')
+
+    threads = [
+        threading.Thread(target=fetch, args=(src, role), daemon=True)
+        for role in SCHEDULED_ROLES
+        for src in SCHEDULED_SOURCES_FAST
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=60)
+
+    # Deduplicate by URL
+    seen_now, all_jobs = set(), []
+    for job in results:
+        url = job.get('url', '')
+        if url and url not in seen_now:
+            seen_now.add(url)
+            all_jobs.append(job)
+
+    new_jobs = [j for j in all_jobs if j.get('url') and j['url'] not in seen]
+
+    # Keep only management-level jobs (exclude team leads like ראש צוות)
+    def _is_mgmt(title):
+        t = title.lower()
+        if any(kw in t for kw in ['מנהל', 'manager', 'director', 'head of', 'vp', 'vice president']):
+            return True
+        if 'ראש' in t and 'צוות' not in t:   # ראש מחלקה/אגף yes, ראש צוות no
+            return True
+        return False
+    before_mgmt = len(new_jobs)
+    new_jobs = [j for j in new_jobs if _is_mgmt(j.get('title', '') or '')]
+
+    # Keep only hi-tech / tech-adjacent companies
+    _NONTECH = [
+        'cnc', 'renewable energy', 'אנרגיה מתחדשת', 'אנרגיה ירוקה',
+        'שמירה ואבטחה', 'מוקד שמירה', 'שרותי שמירה', 'אבטחה פיזית',
+        'בנייה', 'קבלן', 'שיפוצים', 'ניקיון',
+        'קמעונאות', 'סופרמרקט', 'supermarket',
+        'מזון ומשקאות', 'מאפייה', 'מסעדה',
+        'חקלאות', 'כרייה', 'נדל"ן', 'real estate',
+        'הובלה', 'לוגיסטיקה', 'שינוע',
+        'בית חולים', 'hospital', 'מרפאה', 'clinic',
+        'ביטוח ישיר', 'הפניקס', 'כלל ביטוח', 'מגדל ביטוח',
+    ]
+    def _is_hitech(job):
+        text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
+        return not any(kw in text for kw in _NONTECH)
+    new_jobs = [j for j in new_jobs if _is_hitech(j)]
+
+    # Filter out already-applied jobs
+    applied_urls = {a['url'] for a in _load_apps() if a.get('url')}
+    new_jobs = [j for j in new_jobs if j.get('url') not in applied_urls]
+    print(f'[notify] {len(all_jobs)} total, {before_mgmt} new, {len(new_jobs)} after filters')
+
+    updated_seen = seen | {j['url'] for j in all_jobs if j.get('url')}
+    if len(updated_seen) > 5000:
+        updated_seen = set(list(updated_seen)[-4000:])
+    _save_seen_jobs(updated_seen)
+
+    if not new_jobs:
+        print('[notify] No new jobs — skipping Telegram')
+        return
+
+    hour = time.strftime('%H:%M')
+    date = time.strftime('%Y-%m-%d')
+
+    # Save jobs to daily file so /daily endpoint can serve them
+    _daily_file = '/data/daily.json' if os.path.isdir('/data') else os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), 'daily.json')
+    try:
+        with open(_daily_file, 'w', encoding='utf-8') as f:
+            json.dump({'time': f'{date} {hour}', 'jobs': new_jobs}, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+    # Also POST to cloud server so the /daily page is accessible from iPhone
+    try:
+        import urllib.request as _ur
+        _payload = json.dumps({'time': f'{date} {hour}', 'jobs': new_jobs}, ensure_ascii=False).encode('utf-8')
+        _req = _ur.Request('https://shaul-job-search.fly.dev/daily-update',
+                           data=_payload, headers={'Content-Type': 'application/json'})
+        _ur.urlopen(_req, timeout=10)
+    except Exception:
+        pass
+
+    # ONE clean Telegram message with a link
+    src_summary = ', '.join(
+        f"{s} ({cnt})"
+        for s, cnt in sorted(
+            __import__('collections').Counter(j.get('source','') for j in new_jobs).items(),
+            key=lambda x: -x[1]
+        )[:4]
+    )
+    daily_url = f'https://shaul-job-search.fly.dev/daily'
+    _send_notification(
+        f'🔍 <b>{len(new_jobs)} משרות חדשות</b> — {hour}\n'
+        f'{src_summary}\n\n'
+        f'<a href="{daily_url}">📋 פתח רשימה מלאה ↗</a>'
+    )
+
+
+_load_seen_jobs()   # pre-load at startup
+
+# ── Application tracker ───────────────────────────────────────────────────────
+import uuid as _uuid_mod
+
+_APPS_FILE = '/data/applications.json' if os.path.isdir('/data') else os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), 'applications.json')
+
+
+def _load_apps():
+    try:
+        with open(_APPS_FILE, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _save_apps(apps):
+    try:
+        with open(_APPS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(apps, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f'  [apps] save error: {e}')
+
+
 # ── HTTP Server ───────────────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
 
@@ -1122,6 +1353,157 @@ class Handler(BaseHTTPRequestHandler):
 
         if parsed.path == '/stream':
             self._handle_stream(parse_qs(parsed.query))
+            return
+
+        if parsed.path == '/notify':
+            # SSE: keeps HTTP connection alive during search → machine doesn't auto-stop
+            try:
+                self.send_response(200)
+                self._cors()
+                self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+                self.send_header('Cache-Control', 'no-cache')
+                self.send_header('X-Accel-Buffering', 'no')
+                self.end_headers()
+            except Exception:
+                return
+            done = [False]
+            def _do():
+                _run_notify_job()
+                done[0] = True
+            threading.Thread(target=_do, daemon=True).start()
+            while not done[0]:
+                try:
+                    self.wfile.write(b': k\n\n')
+                    self.wfile.flush()
+                    time.sleep(10)
+                except Exception:
+                    break
+            try:
+                self.wfile.write(b'data: done\n\n')
+                self.wfile.flush()
+            except Exception:
+                pass
+            return
+
+        if parsed.path == '/applications':
+            self._json(_load_apps())
+            return
+
+        if parsed.path == '/daily':
+            _df = '/data/daily.json' if os.path.isdir('/data') else os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'daily.json')
+            try:
+                with open(_df, encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {'time': '', 'jobs': []}
+            jobs = data.get('jobs', [])
+            run_time = data.get('time', '')
+            from collections import defaultdict as _dd
+            by_src = _dd(list)
+            for j in jobs:
+                by_src[j.get('source','אחר')].append(j)
+            SOURCE_COLORS = {
+                'LinkedIn':'#0077b5','Indeed':'#003a9b','AllJobs':'#7b2d8b',
+                'Drushim':'#1a7a40','Comeet':'#2d6a4f','GotFriends':'#e67e00',
+                'Experis':'#b71c1c','Dialog':'#0d5c9e','SQLink':'#1b5e20',
+                'Nisha':'#6a1b9a',
+            }
+            import html as _hm
+            cards = ''
+            for src, sjobs in sorted(by_src.items(), key=lambda x: -len(x[1])):
+                color = SOURCE_COLORS.get(src, '#555')
+                cards += f'<div class="src-header" style="border-color:{color};color:{color}">{_hm.escape(src)} — {len(sjobs)} משרות</div>'
+                for j in sjobs:
+                    title   = _hm.escape((j.get('title','') or '')[:70])
+                    company = _hm.escape((j.get('company','') or '')[:40])
+                    url     = j.get('url','') or ''
+                    apply_url = (f'https://shaul-job-search.fly.dev/apply'
+                                 f'?url={quote(url)}&title={quote(j.get("title",""))}'
+                                 f'&company={quote(j.get("company",""))}&source={quote(src)}') if url else ''
+                    cards += f'''<div class="card">
+  <div class="title">{f'<a href="{_hm.escape(url)}">{title}</a>' if url else title}</div>
+  <div class="company">{company} · <span style="color:{color}">{_hm.escape(src)}</span></div>
+  {f'<a href="{_hm.escape(apply_url)}" class="apply-btn">✅ הגשתי</a>' if apply_url else ''}
+</div>'''
+            html_page = f'''<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>משרות חדשות — {run_time}</title>
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:Arial,sans-serif;background:#f1f5f9;padding:12px;direction:rtl}}
+h1{{font-size:1.1em;font-weight:800;color:#1e293b;margin-bottom:4px}}
+.sub{{color:#64748b;font-size:.82em;margin-bottom:16px}}
+.src-header{{font-weight:700;font-size:.88em;border-right:4px solid;padding:6px 10px;
+             background:white;border-radius:8px 8px 0 0;margin-top:14px;margin-bottom:1px}}
+.card{{background:white;padding:12px;margin-bottom:2px;border-right:1px solid #e2e8f0}}
+.card:last-of-type{{border-radius:0 0 8px 8px;margin-bottom:0}}
+.title{{font-weight:700;font-size:.95em;margin-bottom:3px}}
+.title a{{color:#1e293b;text-decoration:none}}
+.company{{color:#64748b;font-size:.82em;margin-bottom:6px}}
+.apply-btn{{display:inline-block;background:#16a34a;color:white;padding:6px 14px;
+            border-radius:7px;font-size:.8em;font-weight:700;text-decoration:none}}
+</style></head>
+<body>
+<h1>🔍 {len(jobs)} משרות חדשות</h1>
+<div class="sub">{run_time}</div>
+{cards}
+</body></html>'''
+            body = html_page.encode('utf-8')
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if parsed.path == '/apply':
+            # GET → confirmation page only (do NOT record yet — Telegram crawls this URL)
+            qs      = parse_qs(parsed.query)
+            job_url = qs.get('url',     [''])[0]
+            title   = qs.get('title',   [''])[0]
+            company = qs.get('company', [''])[0]
+            source  = qs.get('source',  [''])[0]
+            import html as _html_mod
+            safe_url     = _html_mod.escape(job_url)
+            safe_title   = _html_mod.escape(title)
+            safe_company = _html_mod.escape(company)
+            safe_source  = _html_mod.escape(source)
+            html_page = f'''<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>אישור הגשה</title>
+<style>
+  body{{font-family:Arial,sans-serif;text-align:center;padding:40px;background:#f8fafc;margin:0}}
+  .card{{background:white;border-radius:16px;padding:30px;max-width:420px;margin:0 auto;box-shadow:0 2px 20px rgba(0,0,0,.1)}}
+  .jt{{font-weight:700;font-size:1.1em;margin:12px 0 4px}} .jc{{color:#64748b;margin-bottom:20px}}
+  .btn{{background:#16a34a;color:white;border:none;padding:14px 28px;border-radius:10px;font-size:1em;font-weight:700;cursor:pointer;width:100%;margin-top:8px}}
+  .btn:hover{{background:#15803d}}
+  .link{{color:#6366f1;font-size:.85em;display:block;margin-top:14px}}
+</style></head>
+<body><div class="card">
+  <div style="font-size:2.5em">📋</div>
+  <h2 style="margin:8px 0">לסמן כ"הגשתי"?</h2>
+  <div class="jt">{safe_title}</div>
+  <div class="jc">{safe_company} · {safe_source}</div>
+  <form method="POST" action="/apply-confirm">
+    <input type="hidden" name="url"     value="{safe_url}">
+    <input type="hidden" name="title"   value="{safe_title}">
+    <input type="hidden" name="company" value="{safe_company}">
+    <input type="hidden" name="source"  value="{safe_source}">
+    <button class="btn" type="submit">✅ כן, הגשתי</button>
+  </form>
+  <a class="link" href="{safe_url}" target="_blank">פתח המשרה המקורית ↗</a>
+</div></body></html>'''
+            body = html_page.encode('utf-8')
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
 
         if parsed.path != '/search':
@@ -1273,6 +1655,128 @@ class Handler(BaseHTTPRequestHandler):
 
         send_event({'done': True})
 
+    def do_POST(self):
+        parsed = urlparse(self.path)
+
+        if parsed.path == '/daily-update':
+            length = int(self.headers.get('Content-Length', 0))
+            body   = self.rfile.read(length)
+            _df = '/data/daily.json' if os.path.isdir('/data') else os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'daily.json')
+            try:
+                with open(_df, 'wb') as f:
+                    f.write(body)
+            except Exception:
+                pass
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
+
+        if parsed.path == '/apply-confirm':
+            # Actual recording — only triggered by user pressing the button
+            length   = int(self.headers.get('Content-Length', 0))
+            raw      = self.rfile.read(length).decode('utf-8')
+            from urllib.parse import parse_qs as _pqs, unquote_plus as _uqp
+            fields   = {k: v[0] for k, v in _pqs(raw).items()}
+            job_url  = fields.get('url', '')
+            title    = fields.get('title', '')
+            company  = fields.get('company', '')
+            source   = fields.get('source', '')
+            already  = False
+            if job_url:
+                apps = _load_apps()
+                already = any(a.get('url') == job_url for a in apps)
+                if not already:
+                    apps.append({
+                        'id':           str(_uuid_mod.uuid4()),
+                        'title':        title,
+                        'company':      company,
+                        'source':       source,
+                        'url':          job_url,
+                        'date_applied': time.strftime('%Y-%m-%d'),
+                        'status':       'נשלח',
+                        'notes':        'הוגש מטלגרם',
+                    })
+                    _save_apps(apps)
+            import html as _hm
+            msg = 'כבר רשומה' if already else 'נרשמה!'
+            html_done = f'''<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>הגשה נרשמה</title>
+<style>body{{font-family:Arial,sans-serif;text-align:center;padding:40px;background:#f0fdf4;margin:0}}
+.card{{background:white;border-radius:16px;padding:30px;max-width:420px;margin:0 auto;box-shadow:0 2px 20px rgba(0,0,0,.1)}}
+a{{color:#6366f1;font-weight:700;text-decoration:none;display:block;margin-top:16px}}</style></head>
+<body><div class="card">
+  <div style="font-size:2.8em">✅</div>
+  <h2 style="color:#16a34a">הגשה {_hm.escape(msg)}</h2>
+  <div style="font-weight:700">{_hm.escape(title)}</div>
+  <div style="color:#64748b">{_hm.escape(company)}</div>
+  <a href="https://job-search-cloud.vercel.app/">📋 פתח מרכז חיפוש</a>
+</div></body></html>'''.encode('utf-8')
+            self.send_response(200)
+            self._cors()
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(html_done)))
+            self.end_headers()
+            self.wfile.write(html_done)
+            return
+
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        if parsed.path == '/applications':
+            length = int(self.headers.get('Content-Length', 0))
+            body   = json.loads(self.rfile.read(length))
+            apps   = _load_apps()
+            new    = {
+                'id':           str(_uuid_mod.uuid4()),
+                'title':        body.get('title', ''),
+                'company':      body.get('company', ''),
+                'url':          body.get('url', ''),
+                'source':       body.get('source', ''),
+                'date_applied': body.get('date_applied', time.strftime('%Y-%m-%d')),
+                'status':       body.get('status', 'נשלח'),
+                'notes':        body.get('notes', ''),
+            }
+            apps.append(new)
+            _save_apps(apps)
+            self.wfile.write(json.dumps(new, ensure_ascii=False).encode('utf-8'))
+
+    def do_PUT(self):
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        parsed = urlparse(self.path)
+        if parsed.path.startswith('/applications/'):
+            app_id = parsed.path.rsplit('/', 1)[-1]
+            length = int(self.headers.get('Content-Length', 0))
+            body   = json.loads(self.rfile.read(length))
+            apps   = _load_apps()
+            for a in apps:
+                if a['id'] == app_id:
+                    a.update({k: v for k, v in body.items() if k != 'id'})
+                    break
+            _save_apps(apps)
+            self.wfile.write(b'{"ok":true}')
+
+    def do_DELETE(self):
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.end_headers()
+        parsed = urlparse(self.path)
+        if parsed.path.startswith('/applications/'):
+            app_id = parsed.path.rsplit('/', 1)[-1]
+            apps   = [a for a in _load_apps() if a['id'] != app_id]
+            _save_apps(apps)
+        self.wfile.write(b'{"ok":true}')
+
     def _json(self, data):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
         try:
@@ -1300,4 +1804,4 @@ if __name__ == '__main__':
     if not PLAYWRIGHT_OK:
         print('Run: pip install playwright && playwright install chromium')
     print('Press Ctrl+C to stop\n')
-    HTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
+    ThreadingHTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
