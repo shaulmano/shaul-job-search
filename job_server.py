@@ -893,6 +893,12 @@ def _sj_posted(url, dates):
     return dates[url]
 
 
+def _sj_search_link(title, company):
+    from urllib.parse import quote_plus
+    q = f'"{title}" "{company}"' if company and company != 'SecretJobs' else f'"{title}"'
+    return f'https://www.google.com/search?q={quote_plus(q)}'
+
+
 def search_secretjobs(role, time_filter='20h'):
     """The sitemap carries no lastmod, so time_filter cannot be honoured —
     every listing looks equally fresh. seen_jobs is what stops repeats, which
@@ -949,6 +955,11 @@ def search_secretjobs(role, time_filter='20h'):
             'company': company or 'SecretJobs',
             'date': posted,
             'url': u,
+            # Their page is a paywall and carries no link to the employer -
+            # verified on both the job and company pages, neither has a single
+            # outbound link. Title and company are exact, though, so a scoped
+            # search lands on the company's own posting in one click.
+            'link': _sj_search_link(title, company),
             'source': 'SecretJobs',
             'location': 'Israel',
         })
@@ -1888,7 +1899,10 @@ def _job_line(j) -> str:
     title   = _esc((j.get('title') or '').strip()) or '(ללא כותרת)'
     company = _esc((j.get('company') or '').strip())
     source  = _esc((j.get('source') or '').strip())
-    url     = _esc((j.get('url') or '').strip())
+    # 'link' is where the reader should be sent, 'url' is the job's identity for
+    # seen_jobs. They differ only for SecretJobs, whose own page is a paywall -
+    # changing 'url' instead would make every one of its jobs look new again.
+    url     = _esc((j.get('link') or j.get('url') or '').strip())
     tag     = '🟢 SaaS · ' if _is_saas(j) else ''
     line = f'• <a href="{url}">{title}</a>' if url else f'• {title}'
     meta = ' · '.join(x for x in (company, f'<i>{source}</i>' if source else '') if x)
