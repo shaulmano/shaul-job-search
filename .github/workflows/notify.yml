@@ -57,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add docs seen_jobs.json jobs.jsonl
-          git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json + jobs.jsonl"
+          git add docs seen_jobs.json jobs.jsonl secretjobs_snapshot.json
+          git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json + jobs.jsonl + secretjobs snapshot"
           git pull --rebase --autostash
           git push

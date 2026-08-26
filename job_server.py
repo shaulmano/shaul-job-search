@@ -736,6 +736,39 @@ _SJ_ROLE_KEYWORDS = {
 }
 
 
+# Their sitemap comes down reliably from Israel and 504s from the Actions
+# region, so the last good copy is kept in the repo. It is committed by the
+# workflow like seen_jobs.json, which means a run that cannot reach them still
+# has a job list to work from - a few hours stale at worst.
+_SJ_SNAPSHOT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            'secretjobs_snapshot.json')
+
+
+def _sj_load_snapshot(which):
+    try:
+        with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+            data = json.load(f)
+        got = data.get(which) or []
+        return set(got) if which == 'companies' else got
+    except Exception:
+        return None
+
+
+def _sj_save_snapshot(which, locs):
+    try:
+        try:
+            with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        data[which] = sorted(locs)
+        data[which + '_fetched'] = _now_il().isoformat(timespec='seconds')
+        with open(_SJ_SNAPSHOT, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=0)
+    except Exception as e:
+        print(f'  [SecretJobs] could not store {which} snapshot: {e}')
+
+
 def _sj_sitemap(which):
     hit = _SJ_CACHE.get(which)
     if hit and time.time() - hit[0] < _SJ_TTL:
@@ -768,13 +801,23 @@ def _sj_sitemap(which):
             if wait:
                 time.sleep(wait)
     else:
+        # Their edge will not serve this from the Actions region, however long
+        # we wait. Fall back to the last copy that did come down: a job list a
+        # few hours stale still surfaces jobs, and seen_jobs stops repeats.
+        stale = _sj_load_snapshot(which)
+        if stale:
+            print(f'  [SecretJobs] {which} unreachable — using the stored copy '
+                  f'({len(stale)} entries)')
+            _SJ_CACHE[which] = (time.time(), stale)
+            return stale
         raise RuntimeError(
-            f'{which} sitemap unreachable after {len(_SJ_BACKOFF)} tries '
-            f'(Vercel cache miss from this region): {last}')
+            f'{which} sitemap unreachable after {len(_SJ_BACKOFF)} tries and no '
+            f'stored copy exists (Vercel cache miss from this region): {last}')
     locs = [u for u in re.findall(r'<loc>([^<]+)</loc>', r.text) if '/he/' not in u]
     if which == 'companies':
         locs = {u.rsplit('/', 1)[-1] for u in locs if '/companies/' in u}
     print(f'  [SecretJobs] {which} sitemap: {len(locs)} entries')
+    _sj_save_snapshot(which, locs)
     _SJ_CACHE[which] = (time.time(), locs)
     return locs
 
