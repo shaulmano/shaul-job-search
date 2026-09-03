@@ -1437,7 +1437,12 @@ def search_one1(role, time_filter='20h'):
             title = title_el.get_text(strip=True)
             if not title or len(title) < 4:
                 continue
-            url = f'{base}/?p={job_id}'
+            # NOT '?p={id}': that renders a page with the right <title> and an
+            # EMPTY body — One1 has no standalone job page, the jobs are accordion
+            # items injected into /careers/ by this same AJAX call. Verified in a
+            # real browser 03/09/2026. The careers URL always opens; ?job_id is
+            # ignored by the site but keeps the url unique so seen_jobs dedup works.
+            url = f'{base}/careers/?job_id={job_id}'
             if url in seen:
                 continue
             seen.add(url)
