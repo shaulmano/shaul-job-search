@@ -424,49 +424,72 @@ def _drushim_terms(role):
     return terms
 
 
+# Drushim rebuilt on Next.js and /api/jobs/search now 404s, which is what took
+# this source - its best one, 33 on target of 91 - to zero. The job data is
+# embedded in the page instead, under __NEXT_DATA__ as React Query's dehydrated
+# state, so read it there rather than guessing at a replacement endpoint: the
+# page is the contract the site actually has to keep.
+# The new records are flat (id/title/companyName/city) where the old ones nested
+# everything under JobInfo, and they carry `description` and `publishedAtIso` -
+# so this source now supplies job descriptions for free.
+_DRUSHIM_JSON_RE = re.compile(r'id="__NEXT_DATA__"[^>]*>(\{.*?\})</script>', re.S)
+
+def _drushim_page(term):
+    base = 'https://www.drushim.co.il'
+    r = cf_requests.get(f'{base}/jobs/search/{quote(term)}/',
+                        impersonate='chrome124', timeout=25,
+                        headers={'Referer': base + '/'})
+    m = _DRUSHIM_JSON_RE.search(r.text)
+    if not m:
+        return []
+    data = json.loads(m.group(1))
+    queries = data.get('props', {}).get('pageProps', {}).get('dehydratedState', {}).get('queries', [])
+    out = []
+    for q in queries:
+        if 'search-results' not in str(q.get('queryKey')):
+            continue
+        for page in (q.get('state', {}).get('data', {}) or {}).get('pages', []):
+            out.extend(page.get('jobs') or [])
+    return out
+
+
 def search_drushim(role, time_filter='20h'):
     if not CURL_CFFI_OK:
         return []
     base = 'https://www.drushim.co.il'
     try:
-        result_list, seen_links = [], set()
+        raw, seen = [], set()
         for term in _drushim_terms(role):
-            url = f'{base}/api/jobs/search?searchterm={quote(term)}'
-            r = cf_requests.get(url, impersonate='chrome124', timeout=15,
-                                headers={'Referer': base + '/'})
-            for job in (r.json().get('ResultList') or []):
-                link = (job.get('JobInfo') or {}).get('Link', '')
-                if link and link not in seen_links:
-                    seen_links.add(link)
-                    result_list.append(job)
+            for j in _drushim_page(term):
+                jid = j.get('id')
+                if jid and jid not in seen:
+                    seen.add(jid)
+                    raw.append(j)
             # The full phrase is the precise one; only widen when it found
             # nothing, so a role that already works keeps its narrower results.
-            if result_list:
+            if raw:
                 break
         keywords = _drushim_keywords(role)
         jobs = []
-        for job in result_list:
-            info = job.get('JobInfo', {})
-            content = job.get('JobContent', {})
-            company_info = job.get('Company', {})
-            title = content.get('Name', '') or content.get('FullName', '')
-            link = info.get('Link', '')
-            if not title or not link:
+        for j in raw:
+            title = (j.get('title') or '').strip()
+            if not title or not any(k in title.lower() for k in keywords):
                 continue
-            title_lower = title.lower()
-            if not any(kw in title_lower for kw in keywords):
-                continue
+            url = j.get('jobUrl') or ''
+            if url and not url.startswith('http'):
+                url = base + url
             jobs.append({
                 'title': title[:120],
-                'company': company_info.get('CompanyDisplayName', ''),
-                'date': info.get('JumpDate', '')[:10],
-                'url': base + link,
+                'company': (j.get('companyName') or '').strip()[:80],
+                'date': (j.get('publishedAtIso') or '')[:10],
+                'url': url,
                 'source': 'Drushim',
-                'location': 'Israel',
+                'location': (j.get('city') or 'Israel')[:60],
+                'description': (j.get('description') or '')[:3000],
             })
         return jobs[:50]
     except Exception as e:
-        print(f'  [Drushim] API error: {e}')
+        print(f'  [Drushim] error: {e}')
         return []
 
 
