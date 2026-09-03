@@ -1280,44 +1280,61 @@ def search_indeed(role, time_filter='20h'):
 
 
 # ── Malam Team ────────────────────────────────────────────────────────────────
+# Malam's own career-search lobby, not career.malamteam.com. The old list page
+# answered with 969 links that were almost all addtoany share widgets and yielded
+# 83 rows; this one carries 473 real postings as <li class="s_career">, each with
+# a heading, a location, a job number AND the full description text - so it also
+# closes the description gap for this source at no extra request. Shaul found it.
+# No Playwright either: plain curl_cffi serves the whole board in one call.
+_MALAM_CACHE = {}   # {'all': (ts, jobs)}
+_MALAM_TTL = 3600
+_MALAM_URL = ('https://www.malamteam.com/'
+              '%d7%9c%d7%95%d7%91%d7%99-%d7%97%d7%99%d7%a4%d7%95%d7%a9-%d7%a7%d7%a8%d7%99%d7%99%d7%a8%d7%94/')
+_MALAM_NUM_RE = re.compile(r"מס['’] ?משרה\s*(\d+)")
+
 def search_malamteam(role, time_filter='20h'):
-    if not PLAYWRIGHT_OK:
+    if not CURL_CFFI_OK:
         return []
-    url = 'https://career.malamteam.com/%D7%A8%D7%A9%D7%99%D7%9E%D7%AA-%D7%9E%D7%A9%D7%A8%D7%95%D7%AA/'
+    hit = _MALAM_CACHE.get('all')
+    if hit and time.time() - hit[0] < _MALAM_TTL:
+        return hit[1]
     try:
-        html = pw_get_html(url, wait_selector='div.job-item-container', wait_ms=3000)
+        r = cf_requests.get(_MALAM_URL, impersonate='chrome124', timeout=40)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        jobs, seen = [], set()
+        for card in soup.select('li.s_career'):
+            head = card.find(['h2', 'h3', 'h4'])
+            link = card.select_one('a[href*="/משרה/"], a[href*="%d7%9e%d7%a9%d7%a8%d7%94"]')
+            if not head or not link:
+                continue
+            title = head.get_text(' ', strip=True)
+            url = link.get('href', '')
+            if len(title) < 4 or not url or url in seen:
+                continue
+            seen.add(url)
+            text = card.get_text(' ', strip=True)
+            num = _MALAM_NUM_RE.search(text)
+            # The line reads "מס' משרה N <category> <location> <title> <description>",
+            # so the location is whatever sits between the number and the title.
+            location = 'Israel'
+            if num:
+                gap = text[num.end():text.find(title)] if title in text else ''
+                parts = [p.strip() for p in gap.split() if p.strip()]
+                if parts:
+                    location = ' '.join(parts)[:60]
+            body = text.split(title, 1)[-1].strip() if title in text else text
+            jobs.append({
+                'title': title[:120], 'company': 'Malam Team', 'date': '',
+                'url': url, 'source': 'Malam Team', 'location': location,
+                'description': body[:3000],
+            })
+        # Cap at 500: one request serves every role, so the cap only bounds memory.
+        jobs = jobs[:500]
+        _MALAM_CACHE['all'] = (time.time(), jobs)
+        return jobs
     except Exception as e:
-        print(f'  [MalamTeam] Playwright error: {e}')
-        return []
-    soup = BeautifulSoup(html, 'html.parser')
-    keywords = [w.lower() for w in role.split() if len(w) > 2]
-    jobs = []
-    for card in soup.select('div.job-item-container'):
-        top = card.select_one('.job-item-top')
-        meta = card.select_one('.job-meta')
-        link = card.select_one('a[href*="malamteam"]')
-        if not top or not link:
-            continue
-        meta_text = meta.get_text(strip=True) if meta else ''
-        title = top.get_text(strip=True).replace(meta_text, '').strip()
-        if len(title) < 4:
-            continue
-        if not any(kw in title.lower() for kw in keywords):
-            continue
-        jobs.append({
-            'title': title[:120],
-            'company': 'Malam Team',
-            'date': '',
-            'url': link.get('href', ''),
-            'source': 'Malam Team',
-            'location': 'Israel',
-        })
-    seen, unique = set(), []
-    for j in jobs:
-        if j['url'] not in seen:
-            seen.add(j['url'])
-            unique.append(j)
-    return unique[:50]
+        print(f'  [MalamTeam] error: {e}')
+        return hit[1] if hit else []
 
 
 # ── Maof ──────────────────────────────────────────────────────────────────────
