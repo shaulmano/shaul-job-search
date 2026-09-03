@@ -1326,8 +1326,16 @@ def search_malamteam(role, time_filter='20h'):
         # runner, where this returned nothing and read as a dead source.
         r = cf_requests.get(_MALAM_URL, impersonate='chrome124', timeout=120)
         soup = BeautifulSoup(r.text, 'html.parser')
+        cards = soup.select('li.s_career')
+        if not cards:
+            # Zero cards with no exception is a different failure from a timeout,
+            # and "returned nothing" hid which one it was for three runs. From a
+            # GitHub runner this comes back in 4s, so the request is succeeding
+            # and the page simply has no jobs in it.
+            print(f'  [MalamTeam] no cards: HTTP {r.status_code}, {len(r.text)} bytes, '
+                  f'title={(soup.title.get_text(strip=True)[:60] if soup.title else "-")}')
         jobs, seen = [], set()
-        for card in soup.select('li.s_career'):
+        for card in cards:
             head = card.find(['h2', 'h3', 'h4'])
             link = card.select_one('a[href*="/משרה/"], a[href*="%d7%9e%d7%a9%d7%a8%d7%94"]')
             if not head or not link:
