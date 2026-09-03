@@ -1322,7 +1322,9 @@ def search_malamteam(role, time_filter='20h'):
     if hit and time.time() - hit[0] < _MALAM_TTL:
         return hit[1]
     try:
-        r = cf_requests.get(_MALAM_URL, impersonate='chrome124', timeout=40)
+        # 8MB of HTML. 40s was enough locally (2.8s) and not from a GitHub
+        # runner, where this returned nothing and read as a dead source.
+        r = cf_requests.get(_MALAM_URL, impersonate='chrome124', timeout=120)
         soup = BeautifulSoup(r.text, 'html.parser')
         jobs, seen = [], set()
         for card in soup.select('li.s_career'):
