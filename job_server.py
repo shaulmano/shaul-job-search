@@ -1394,31 +1394,33 @@ def search_sela(role, time_filter='20h'):
 
 
 # ── One1 ──────────────────────────────────────────────────────────────────────
-_ONE1_CATEGORY_IDS = {
-    'qa': 258, 'test': 258, 'automation': 258, 'quality': 258,
-    'project': 12, 'program': 12, 'manager': 258,
-    'devops': 261, 'cloud': 261, 'cyber': 260, 'sap': 259,
-}
+# One1's category filter is a trap: catid=12 (project) returns 0 jobs and
+# catid=258 (Testing & Automation) returns 1, while an EMPTY catid returns the
+# whole board — 141 jobs measured 03/09/2026, including PMO חטיבתית,
+# מנהל/ת פרויקטים מערכות מידע and several ממשלתי PMO roles. The old map also
+# routed Release / Delivery / Professional Services Manager to 258 via the
+# generic 'manager' key, i.e. to a category that can never hold them. Same
+# lesson as SQLink and Nisha: these boards have no usable query — fetch the
+# whole list once and let the title gates decide relevance.
+_ONE1_CACHE = {}   # {'all': (ts, jobs)}
+_ONE1_TTL = 3600
 
 def search_one1(role, time_filter='20h'):
     if not CURL_CFFI_OK:
         return []
-    r = role.lower()
-    cat_id = 258  # default: Testing & Automation
-    for key, cid in _ONE1_CATEGORY_IDS.items():
-        if key in r:
-            cat_id = cid
-            break
+    hit = _ONE1_CACHE.get('all')
+    if hit and time.time() - hit[0] < _ONE1_TTL:
+        return hit[1]
     base = 'https://www.one1.co.il'
     try:
         post_data = (
-            f'action=oneglobal_search_job_ajax&catid={cat_id}'
+            'action=oneglobal_search_job_ajax&catid='
             f'&searchtype=catsearch&career_page_link={quote(base + "/careers/")}'
         )
         r_resp = cf_requests.post(
             f'{base}/wp-admin/admin-ajax.php?lang=he',
             data=post_data,
-            impersonate='chrome124', timeout=15,
+            impersonate='chrome124', timeout=20,
             headers={
                 'Referer': f'{base}/careers/',
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -1443,9 +1445,15 @@ def search_one1(role, time_filter='20h'):
                 'title': title[:120], 'company': 'One1', 'date': '',
                 'url': url, 'source': 'One1', 'location': 'Israel',
             })
-        return jobs[:50]
+        # Cap at 200, not 50: the cap bounds per-job requests and this scraper
+        # makes none — one POST serves every role.
+        jobs = jobs[:200]
+        _ONE1_CACHE['all'] = (time.time(), jobs)
+        return jobs
     except Exception as e:
         print(f'  [One1] error: {e}')
+        if hit:
+            return hit[1]
         return []
 
 
@@ -1929,7 +1937,7 @@ _RELEVANT_TITLE_RE = re.compile(
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim',
     'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
-    'malamteam', 'secretjobs',
+    'malamteam', 'one1', 'secretjobs',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
@@ -2339,14 +2347,19 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         'cnc', 'renewable energy', 'אנרגיה מתחדשת', 'אנרגיה ירוקה',
         'שמירה ואבטחה', 'מוקד שמירה', 'שרותי שמירה', 'אבטחה פיזית',
         'בנייה', 'קבלן', 'שיפוצים', 'ניקיון',
-        'קמעונאות', 'סופרמרקט', 'supermarket',
         # Stems, not whole words: the list said 'מסעדה' and 'מאפייה', which miss
         # 'מסעדת מזון מהיר' and 'מאפיית X' — and a food company advertising
         # מנהל בקרת איכות clears the topic gate on איכות.
         'מזון ומשקאות', 'מאפי', 'מסעד', 'קייטרינג',
         'חקלאות', 'כרייה', 'נדל"ן', 'real estate',
         'הובלה', 'לוגיסטיקה', 'שינוע',
-        'בית חולים', 'hospital', 'מרפאה', 'clinic',
+        # Retail and health funds used to be listed here — קמעונאות/סופרמרקט
+        # and בית חולים/מרפאה. Removed 03/09/2026: the September plan targets
+        # enterprise IT inside exactly those organisations (שופרסל, פוקס,
+        # רמי לוי, כללית, מכבי), which run large in-house IT groups hiring
+        # these very titles. Same reasoning as the insurers below — the title
+        # gates already require a QA / release / project / delivery management
+        # role, which is what keeps a checkout clerk or a ward nurse out.
         # The insurers used to be listed here — הפניקס, מגדל, כלל, ביטוח ישיר.
         # They all run large in-house R&D arms and hire exactly these titles, so
         # blocking them by name threw away real jobs. The title gates above
