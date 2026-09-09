@@ -1847,6 +1847,150 @@ def search_google_jobs(role, time_filter='20h'):
 
 
 # ── Source registry ───────────────────────────────────────────────────────────
+# ── Greenhouse ───────────────────────────────────────────────────────────────
+# Greenhouse is not a job board. It is the applicant tracking system a company
+# runs its own careers page on, so there is nothing to search across it - the
+# only way in is a list of company board tokens, one request each, exactly like
+# Comeet above.
+#
+# The list below was probed, not guessed: 96 Israeli tech companies were tried
+# against the API on 09/09/2026 and 25 answered. The rest either use Comeet,
+# Lever, or their own thing. Adding a name that is not on Greenhouse costs a
+# 404 per scan and returns nothing forever, which is why none are here on
+# assumption.
+#
+# Yield when it was added: 258 Israeli openings across the boards, 11 of them
+# on target - six at NICE alone, and those six are the exact titles being
+# looked for. That beats gotfriends, nisha and sqlink combined.
+#
+# Worth knowing: these are the employers themselves. No agency sits in between,
+# the description is the real one, and the apply link goes straight to them.
+GREENHOUSE_BOARDS = [
+    'catonetworks', 'similarweb', 'nice', 'jfrog', 'taboola', 'payoneer',
+    'appsflyer', 'via', 'fireblocks', 'transmitsecurity', 'forter', 'melio',
+    'axonius', 'torq', 'yotpo', 'cymulate', 'safebreach', 'augury',
+    'orcasecurity', 'descope', 'riskified', 'bigid', 'lightricks', 'lightrun',
+    'cybereason', 'bringg',
+]
+
+# The board token is not the company's name — the API's own board endpoint is,
+# and it says "Cato Networks" where the token says "catonetworks". Fetched once
+# on 09/09/2026 rather than on every scan: a display name does not change, and
+# 26 extra requests a run to prettify a label is a bad trade against the wall
+# clock the scan is already fighting.
+GREENHOUSE_NAMES = {
+    'catonetworks': 'Cato Networks', 'similarweb': 'Similarweb', 'nice': 'NICE',
+    'jfrog': 'JFrog', 'taboola': 'Taboola', 'payoneer': 'Payoneer',
+    'appsflyer': 'AppsFlyer', 'via': 'Via', 'fireblocks': 'Fireblocks',
+    'transmitsecurity': 'Transmit Security', 'forter': 'Forter', 'melio': 'Melio',
+    'axonius': 'Axonius', 'torq': 'Torq', 'yotpo': 'Yotpo', 'cymulate': 'Cymulate',
+    'safebreach': 'SafeBreach', 'augury': 'Augury', 'orcasecurity': 'Orca Security',
+    'descope': 'Descope', 'riskified': 'Riskified', 'bigid': 'BigID',
+    'lightricks': 'Lightricks', 'lightrun': 'Lightrun', 'cybereason': 'Cybereason',
+    'bringg': 'Bringg',
+}
+
+_GH_ISRAEL = ('israel', 'tel aviv', 'tel-aviv', 'herzliya', 'raanana', "ra'anana",
+              'haifa', 'jerusalem', 'netanya', 'petah', 'rehovot', 'beer sheva',
+              'yokneam', 'caesarea', 'ramat gan', 'hod hasharon', 'kfar saba')
+
+
+def search_greenhouse(role, time_filter='20h'):
+    """Read the Israeli Greenhouse boards directly. Public JSON, no key, no browser."""
+    import json, urllib.request, concurrent.futures, html
+    from datetime import datetime, timezone, timedelta
+
+    TIME_DELTAS = {'20h': timedelta(hours=20), '36h': timedelta(hours=36),
+                   '72h': timedelta(hours=72), 'week': timedelta(days=7),
+                   'month': timedelta(days=30)}
+    cutoff = datetime.now(timezone.utc) - TIME_DELTAS.get(time_filter, timedelta(hours=20))
+
+    # Same matcher as Comeet: strip the generic words so "Program Manager" needs
+    # "program" in the title and does not swallow every posting with "manager".
+    _GENERIC = {'manager', 'director', 'head', 'lead', 'senior', 'sr', 'junior',
+                'jr', 'of', 'the', 'and', 'at', 'in', 'for', 'a', 'an', 'r&d'}
+    role_words = set(role.lower().split())
+    role_specific = (role_words - _GENERIC) or role_words
+
+    def _get(url, timeout=12):
+        req = urllib.request.Request(url, headers={'User-Agent': 'situation-room/1.0'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode('utf-8'))
+
+    def _fetch_board(token):
+        try:
+            data = _get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs')
+        except Exception:
+            return []
+
+        out = []
+        for j in data.get('jobs') or []:
+            loc = ((j.get('location') or {}).get('name') or '')
+            if not any(c in loc.lower() for c in _GH_ISRAEL):
+                continue
+            title = (j.get('title') or '').strip()
+            if not title or not any(w in title.lower() for w in role_specific):
+                continue
+
+            upd = j.get('updated_at') or ''
+            if upd:
+                try:
+                    if datetime.fromisoformat(upd.replace('Z', '+00:00')) < cutoff:
+                        continue
+                except ValueError:
+                    pass
+
+            # The description is fetched only for a posting that already matched.
+            # Pulling content for every board would move megabytes per scan to
+            # read a handful of rows - and a description is what lifts a job out
+            # of the title-only score band, so it is worth one extra call each.
+            desc = ''
+            try:
+                full = _get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{j.get("id")}',
+                            timeout=8)
+                desc = re.sub(r'<[^>]+>', ' ', full.get('content') or '')
+                desc = html.unescape(desc)
+                desc = re.sub(r'\s+', ' ', desc).strip()
+            except Exception:
+                pass
+
+            out.append({
+                'title':          title[:120],
+                'company':        GREENHOUSE_NAMES.get(token, token.title()),
+                'date':           upd[:10],
+                'url':            j.get('absolute_url') or '',
+                'source':         'Greenhouse',
+                'location':       loc[:120],
+                'description':    desc[:3000],
+                'recruiter_name': '',
+                'recruiter_url':  '',
+            })
+        return out
+
+    jobs, seen = [], set()
+    deadline = time.time() + 45
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=12)
+    try:
+        futures = [ex.submit(_fetch_board, t) for t in GREENHOUSE_BOARDS]
+        for future in concurrent.futures.as_completed(futures, timeout=50):
+            if time.time() > deadline:
+                break
+            try:
+                for job in future.result():
+                    if job['url'] and job['url'] not in seen:
+                        seen.add(job['url'])
+                        jobs.append(job)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    finally:
+        ex.shutdown(wait=False)
+
+    print(f'  [Greenhouse] {len(jobs)} jobs for "{role}"')
+    return jobs
+
+
 SCRAPERS = {
     'linkedin':    search_linkedin,
     'indeed':      search_indeed,
@@ -1865,6 +2009,7 @@ SCRAPERS = {
     'googlejobs':  search_google_jobs,
     'jobmaster':   search_jobmaster,
     'secretjobs':  search_secretjobs,
+    'greenhouse':  search_greenhouse,
 }
 
 
@@ -1898,6 +2043,7 @@ _SCAN_BUDGET_SEC = 900
 _SOURCE_LABELS = {
     'linkedin': 'LinkedIn', 'indeed': 'Indeed', 'alljobs': 'AllJobs',
     'drushim': 'Drushim', 'comeet': 'Comeet', 'gotfriends': 'GotFriends',
+    'greenhouse': 'Greenhouse',
     'experis': 'Experis', 'dialog': 'Dialog', 'sqlink': 'SQLink',
     'nisha': 'Nisha', 'malamteam': 'MalamTeam', 'maof': 'Maof', 'sela': 'Sela',
     'one1': 'One1', 'googlejobs': 'GoogleJobs', 'jobmaster': 'Jobmaster',
@@ -1992,7 +2138,7 @@ _RELEVANT_TITLE_RE = re.compile(
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim',
     'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
-    'malamteam', 'one1', 'secretjobs',
+    'malamteam', 'one1', 'secretjobs', 'greenhouse',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
