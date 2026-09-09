@@ -54,10 +54,52 @@ jobs:
       # each run, so anything not committed here is lost, and the job records
       # are what a Telegram button will resolve against later.
       - name: Publish jobs.html + seen_jobs.json + jobs.jsonl
+        id: publish
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add docs seen_jobs.json jobs.jsonl secretjobs_snapshot.json
+          # Only jobs.jsonl matters downstream. docs/ and the snapshot change on
+          # runs that found nothing new, and waking the situation room for those
+          # would spend two minutes of its private-repo quota to copy nothing.
+          if git diff --cached --quiet -- jobs.jsonl; then
+            echo "jobs=unchanged" >> "$GITHUB_OUTPUT"
+          else
+            echo "jobs=changed" >> "$GITHUB_OUTPUT"
+          fi
           git diff --cached --quiet || git commit -m "Update jobs.html + seen_jobs.json + jobs.jsonl + secretjobs snapshot"
           git pull --rebase --autostash
           git push
+
+      # Tell the situation room the file moved instead of leaving it to find out.
+      #
+      # It used to find out on its own schedule, and GitHub's cron is best-effort:
+      # on 09/09 the syncs due at 16:20 and 17:50 never ran, so postings sat in
+      # jobs.jsonl for three hours while Telegram already had them. That gap is
+      # not a bug anywhere — it is the cost of polling something that can just
+      # say when it changed.
+      #
+      # The token is deliberately not the one this repo is not allowed to hold.
+      # It grants exactly one thing: start a workflow on situation-room. It
+      # cannot read the database, cannot read the repository, and reaches no
+      # other repo. A secret here is never exposed to a pull request from a
+      # fork — only to workflows on the default branch, which only Shaul pushes.
+      #
+      # Absent, this step says so and exits clean: the scheduled sync is still
+      # there as a floor, so a missing or expired token costs latency, not data.
+      - name: Wake the situation room
+        if: steps.publish.outputs.jobs == 'changed'
+        env:
+          SR_SYNC_TOKEN: ${{ secrets.SR_SYNC_TOKEN }}
+        run: |
+          if [ -z "$SR_SYNC_TOKEN" ]; then
+            echo "SR_SYNC_TOKEN not set - the situation room will pick this up on its own schedule"
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/dispatch.out -w '%{http_code}' -X POST             -H "Authorization: Bearer $SR_SYNC_TOKEN"             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2022-11-28"             https://api.github.com/repos/shaulmano/situation-room/actions/workflows/sync.yml/dispatches             -d '{"ref":"main"}')
+          if [ "$code" = "204" ]; then
+            echo "situation room sync dispatched"
+          else
+            # Not a failure of the scan. Say it loudly and let the run pass.
+            echo "::warning::dispatch returned HTTP $code - $(cat /tmp/dispatch.out)"
+          fi
