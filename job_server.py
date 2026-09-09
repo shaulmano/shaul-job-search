@@ -1991,6 +1991,153 @@ def search_greenhouse(role, time_filter='20h'):
     return jobs
 
 
+# ── Ashby and SmartRecruiters ────────────────────────────────────────────────
+# Two more per-company ATSs, same shape as Greenhouse above: no cross-company
+# search exists, so each is a list of board tokens probed one by one.
+#
+# ⚠ Both are REGISTERED BUT NOT SCHEDULED, and that is the finding, not an
+# oversight. Probed against the same 100 Israeli tech companies on 09/09/2026:
+#
+#   Ashby            3 boards,  41 Israeli openings,  0 on target
+#   SmartRecruiters  1 board,    2 Israeli openings,  1 on target — posted 2017
+#
+# A source in SCHEDULED_SOURCES costs wall-clock on every run whether or not it
+# returns anything, and the scan already spends fifteen of its twenty-five
+# minutes. Zero on target does not earn that. They sit here so a manual scan can
+# reach them and so the day a board fills up the work is a one-line promotion,
+# which is the same reason jobmaster, maof and sela are registered and unlisted.
+ASHBY_BOARDS = ['moonactive', 'honeybook', 'finout']
+SMARTRECRUITERS_BOARDS = {'armis': 'Armis'}
+
+_ATS_ISRAEL = _GH_ISRAEL   # one definition of "is this in Israel"
+
+
+def _ats_role_words(role):
+    """Shared with Comeet and Greenhouse: 'Program Manager' must need 'program'."""
+    generic = {'manager', 'director', 'head', 'lead', 'senior', 'sr', 'junior',
+               'jr', 'of', 'the', 'and', 'at', 'in', 'for', 'a', 'an', 'r&d'}
+    words = set(role.lower().split())
+    return (words - generic) or words
+
+
+def _ats_get(url, timeout=12):
+    import json, urllib.request
+    req = urllib.request.Request(url, headers={'User-Agent': 'situation-room/1.0'})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode('utf-8', 'replace'))
+
+
+def search_ashby(role, time_filter='20h'):
+    """Israeli Ashby boards. Public JSON, descriptions included in the same call."""
+    import concurrent.futures
+    from datetime import datetime, timezone, timedelta
+
+    deltas = {'20h': timedelta(hours=20), '36h': timedelta(hours=36),
+              '72h': timedelta(hours=72), 'week': timedelta(days=7),
+              'month': timedelta(days=30)}
+    cutoff = datetime.now(timezone.utc) - deltas.get(time_filter, timedelta(hours=20))
+    wanted = _ats_role_words(role)
+
+    def _board(tok):
+        try:
+            data = _ats_get(f'https://api.ashbyhq.com/posting-api/job-board/{tok}', 20)
+        except Exception:
+            return []
+        out = []
+        for j in data.get('jobs') or []:
+            loc = j.get('location') or ''
+            if not any(c in loc.lower() for c in _ATS_ISRAEL):
+                continue
+            title = (j.get('title') or '').strip()
+            if not title or not any(w in title.lower() for w in wanted):
+                continue
+            pub = j.get('publishedAt') or ''
+            if pub:
+                try:
+                    if datetime.fromisoformat(pub.replace('Z', '+00:00')) < cutoff:
+                        continue
+                except ValueError:
+                    pass
+            out.append({
+                'title':          title[:120],
+                'company':        tok.replace('-', ' ').title(),
+                'date':           pub[:10],
+                'url':            j.get('jobUrl') or j.get('applyUrl') or '',
+                'source':         'Ashby',
+                'location':       loc[:120],
+                'description':    (j.get('descriptionPlain') or '')[:3000],
+                'recruiter_name': '',
+                'recruiter_url':  '',
+            })
+        return out
+
+    jobs, seen = [], set()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        for res in ex.map(_board, ASHBY_BOARDS):
+            for j in res:
+                if j['url'] and j['url'] not in seen:
+                    seen.add(j['url'])
+                    jobs.append(j)
+    print(f'  [Ashby] {len(jobs)} jobs for "{role}"')
+    return jobs
+
+
+def search_smartrecruiters(role, time_filter='20h'):
+    """Israeli SmartRecruiters boards. No description in the listing endpoint."""
+    import concurrent.futures
+    from datetime import datetime, timezone, timedelta
+
+    deltas = {'20h': timedelta(hours=20), '36h': timedelta(hours=36),
+              '72h': timedelta(hours=72), 'week': timedelta(days=7),
+              'month': timedelta(days=30)}
+    cutoff = datetime.now(timezone.utc) - deltas.get(time_filter, timedelta(hours=20))
+    wanted = _ats_role_words(role)
+
+    def _board(item):
+        tok, label = item
+        try:
+            data = _ats_get(
+                f'https://api.smartrecruiters.com/v1/companies/{tok}/postings?limit=100')
+        except Exception:
+            return []
+        out = []
+        for j in data.get('content') or []:
+            loc = j.get('location') or {}
+            where = '%s, %s' % (loc.get('city', ''), loc.get('country', ''))
+            if (loc.get('country', '').lower() != 'il'
+                    and not any(c in where.lower() for c in _ATS_ISRAEL)):
+                continue
+            title = (j.get('name') or '').strip()
+            if not title or not any(w in title.lower() for w in wanted):
+                continue
+            rel = j.get('releasedDate') or ''
+            if rel:
+                try:
+                    if datetime.fromisoformat(rel.replace('Z', '+00:00')) < cutoff:
+                        continue
+                except ValueError:
+                    pass
+            out.append({
+                'title':          title[:120],
+                'company':        label,
+                'date':           rel[:10],
+                'url':            f'https://jobs.smartrecruiters.com/{tok}/{j.get("id")}',
+                'source':         'SmartRecruiters',
+                'location':       where.strip(', ')[:120],
+                'description':    '',
+                'recruiter_name': '',
+                'recruiter_url':  '',
+            })
+        return out
+
+    jobs = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+        for res in ex.map(_board, SMARTRECRUITERS_BOARDS.items()):
+            jobs.extend(res)
+    print(f'  [SmartRecruiters] {len(jobs)} jobs for "{role}"')
+    return jobs
+
+
 SCRAPERS = {
     'linkedin':    search_linkedin,
     'indeed':      search_indeed,
@@ -2010,6 +2157,8 @@ SCRAPERS = {
     'jobmaster':   search_jobmaster,
     'secretjobs':  search_secretjobs,
     'greenhouse':  search_greenhouse,
+    'ashby':       search_ashby,
+    'smartrecruiters': search_smartrecruiters,
 }
 
 
@@ -2043,7 +2192,8 @@ _SCAN_BUDGET_SEC = 900
 _SOURCE_LABELS = {
     'linkedin': 'LinkedIn', 'indeed': 'Indeed', 'alljobs': 'AllJobs',
     'drushim': 'Drushim', 'comeet': 'Comeet', 'gotfriends': 'GotFriends',
-    'greenhouse': 'Greenhouse',
+    'greenhouse': 'Greenhouse', 'ashby': 'Ashby',
+    'smartrecruiters': 'SmartRecruiters',
     'experis': 'Experis', 'dialog': 'Dialog', 'sqlink': 'SQLink',
     'nisha': 'Nisha', 'malamteam': 'MalamTeam', 'maof': 'Maof', 'sela': 'Sela',
     'one1': 'One1', 'googlejobs': 'GoogleJobs', 'jobmaster': 'Jobmaster',
