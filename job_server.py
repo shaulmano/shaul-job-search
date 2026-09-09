@@ -1890,6 +1890,17 @@ GREENHOUSE_NAMES = {
     'bringg': 'Bringg',
 }
 
+# One fetch per board per run, not one per role.
+#
+# SCHEDULED_ROLES is nine entries and the scraper is called once for each, so
+# without this the twenty-six boards are pulled twenty-six times nine = 234
+# requests a scan, and every matched posting has its description re-fetched
+# nine times over. The whole scan has a 900-second budget and already spends
+# most of it. Five minutes is longer than any single run.
+_GH_CACHE = {}
+_GH_DESC_CACHE = {}
+_GH_CACHE_TTL = 300
+
 _GH_ISRAEL = ('israel', 'tel aviv', 'tel-aviv', 'herzliya', 'raanana', "ra'anana",
               'haifa', 'jerusalem', 'netanya', 'petah', 'rehovot', 'beer sheva',
               'yokneam', 'caesarea', 'ramat gan', 'hod hasharon', 'kfar saba')
@@ -1917,14 +1928,35 @@ def search_greenhouse(role, time_filter='20h'):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode('utf-8'))
 
-    def _fetch_board(token):
+    def _board_jobs(token):
+        hit = _GH_CACHE.get(token)
+        if hit and time.time() - hit[0] < _GH_CACHE_TTL:
+            return hit[1]
         try:
-            data = _get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs')
+            rows = (_get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs')
+                    .get('jobs') or [])
         except Exception:
-            return []
+            rows = []
+        _GH_CACHE[token] = (time.time(), rows)
+        return rows
 
+    def _describe(token, job_id):
+        key = (token, job_id)
+        if key in _GH_DESC_CACHE:
+            return _GH_DESC_CACHE[key]
+        try:
+            full = _get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}',
+                        timeout=8)
+            desc = re.sub(r'<[^>]+>', ' ', full.get('content') or '')
+            desc = re.sub(r'\s+', ' ', html.unescape(desc)).strip()
+        except Exception:
+            desc = ''
+        _GH_DESC_CACHE[key] = desc
+        return desc
+
+    def _fetch_board(token):
         out = []
-        for j in data.get('jobs') or []:
+        for j in _board_jobs(token):
             loc = ((j.get('location') or {}).get('name') or '')
             if not any(c in loc.lower() for c in _GH_ISRAEL):
                 continue
@@ -1944,15 +1976,7 @@ def search_greenhouse(role, time_filter='20h'):
             # Pulling content for every board would move megabytes per scan to
             # read a handful of rows - and a description is what lifts a job out
             # of the title-only score band, so it is worth one extra call each.
-            desc = ''
-            try:
-                full = _get(f'https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{j.get("id")}',
-                            timeout=8)
-                desc = re.sub(r'<[^>]+>', ' ', full.get('content') or '')
-                desc = html.unescape(desc)
-                desc = re.sub(r'\s+', ' ', desc).strip()
-            except Exception:
-                pass
+            desc = _describe(token, j.get('id'))
 
             out.append({
                 'title':          title[:120],
