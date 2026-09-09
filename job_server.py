@@ -2194,6 +2194,13 @@ SCHEDULED_ROLES = [
     # Same target as Release Manager and answered with the same CV; the two are
     # one job under two names depending on the company.
     'Delivery Manager',
+    # Added 09/09/2026. A low-volume, high-fit stream, and measured as such:
+    # four queries over ~180 LinkedIn results returned five roles that genuinely
+    # carry both AI and project/programme management. Four of those five were
+    # traditional organisations - IAI, a software house, Ormat, Medison - which
+    # is the enterprise-IT pivot with evidence under it instead of a hypothesis.
+    'AI Project Manager',
+    'AI Quality Engineer',
 ]
 
 # How far back each source is asked to look. The scan runs hourly, so this is
@@ -2297,7 +2304,21 @@ _RELEVANT_TITLE_RE = re.compile(
     # Hebrew. "דליברי" is the software sense; food delivery is "משלוחים",
     # which stays out.
     r'|בדיקות|בודק|איכות|שחרור|שחרורים|תוכנית|תוכניות|פרויקט|פרויקטים'
-    r'|דליברי|דליוורי|ריליס|ריליז|שירותים\s+מקצועיים',
+    r'|דליברי|דליוורי|ריליס|ריליז|שירותים\s+מקצועיים'
+    # AI titles do not use any of the words above. "מטמיע/ת AI", "AI & Business
+    # Transformation Specialist" and "Program Operations Specialist, AI &
+    # Innovation" are all real openings at Israeli enterprises that this regex
+    # dropped in silence - three of the five found on 09/09. Two lookaheads
+    # instead of a word list, because the order varies: the title has to carry
+    # an AI token AND a leadership or quality one.
+    #
+    # 'engineer' is deliberately not in the second group. It would admit plain
+    # "AI Engineer", which is a developer opening competing against developers,
+    # and that is not the search. "Senior AI Quality Engineer" still passes on
+    # 'quality'.
+    r'|(?=.*\b(?:ai|ml|llm|genai|agentic)\b)'
+    r'(?=.*(?:\b(?:manager|lead|leader|head|director|pmo|specialist|qa|quality'
+    r'|test|testing|implementation|transformation|adoption)\b|מטמיע|הטמע))',
     re.IGNORECASE,
 )
 
