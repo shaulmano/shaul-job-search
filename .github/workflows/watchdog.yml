@@ -34,6 +34,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Reads situation-room's run history. Same narrow token the scan
+          # uses to wake it: Actions on that one repo, nothing else.
+          SR_SYNC_TOKEN: ${{ secrets.SR_SYNC_TOKEN }}
         run: python watchdog.py
 
       # Only whether an alert is outstanding, so repeats stay 12h apart instead
