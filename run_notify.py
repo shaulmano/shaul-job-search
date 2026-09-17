@@ -15,6 +15,8 @@ except ImportError:
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import job_server
+import foreign_filter
+foreign_filter.install(job_server)   # drop foreign companies before anything is recorded
 
 mode = sys.argv[1].lower() if len(sys.argv) > 1 else 'full'
 
