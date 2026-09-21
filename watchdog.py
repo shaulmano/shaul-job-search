@@ -49,13 +49,30 @@ def _api(path, token=None):
 
 
 def last_success(repo=REPO, workflow=WORKFLOW, token=None):
-    """When did the scan last finish successfully? None if never, or unknown."""
-    data = _api(f'/repos/{repo}/actions/workflows/{workflow}/runs'
-                f'?status=success&per_page=1', token)
-    runs = data.get('workflow_runs') or []
-    if not runs:
-        return None
-    return datetime.fromisoformat(runs[0]['updated_at'].replace('Z', '+00:00'))
+    """When did that workflow last finish successfully? None if never.
+
+    Deliberately unfiltered. Asking GitHub for
+    `workflows/<file>/runs?status=success&per_page=1` looks exactly right and
+    lied on 21/09: the same URL answered "21/09 15:38" to a personal token and
+    "03/09 07:42" to the in-workflow GITHUB_TOKEN — eighteen days stale, with no
+    error to notice. Both checks alerted on a system that was working, and a
+    watchdog that cries wolf gets muted, which is worse than no watchdog at all.
+
+    So the filtering happens here instead: fetch the recent runs, keep the ones
+    that are this workflow and did succeed, take the newest. Fifty is several
+    days of history for either workflow.
+    """
+    data = _api(f'/repos/{repo}/actions/runs?per_page=50', token)
+    best = None
+    for r in data.get('workflow_runs') or []:
+        if not (r.get('path') or '').endswith(workflow):
+            continue
+        if r.get('status') != 'completed' or r.get('conclusion') != 'success':
+            continue
+        when = datetime.fromisoformat(r['updated_at'].replace('Z', '+00:00'))
+        if best is None or when > best:
+            best = when
+    return best
 
 
 def send(text):
