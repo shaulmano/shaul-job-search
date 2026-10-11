@@ -2633,9 +2633,16 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
                 # Deliberately domain-based, not seniority-based: matching on bare
                 # "manager"/"head of" pulled in Head of Engineering and מנהל מוצר,
                 # which are senior but off-target.
-                jobs = [j for j in jobs
+                kept = [j for j in jobs
                         if any(kw in (j.get('title', '') + ' ' + j.get('company', '')).lower()
                                for kw in kws)]
+                # This gate sits before every other filter and is invisible in
+                # the report, so a source it empties looks like a quiet board.
+                # audit_sources.py does not apply it, which is how GotFriends
+                # could show 8 on-target there and contribute nothing here.
+                if len(kept) < raw_n:
+                    print(f'  [{source}] domain gate: {raw_n} -> {len(kept)} for "{role}"')
+                jobs = kept
             with lock:
                 stats[source]['raw'] += raw_n
                 stats[source]['done'] += 1
