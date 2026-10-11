@@ -1,0 +1,42 @@
+name: Probe broken sources
+
+# SQLink and One1 answer from a GitHub runner and not from anywhere else a fix
+# can be written, so the probe runs here and prints what the pages return today.
+# Manual only, read-only, and it notifies nobody.
+on:
+  workflow_dispatch:
+    inputs:
+      which:
+        description: 'sqlink, one1, or both (space separated)'
+        required: false
+        default: 'sqlink one1'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml curl_cffi playwright tzdata
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Probe
+        env:
+          WHICH: ${{ inputs.which }}
+        run: |
+          set -o pipefail
+          python probe_broken.py $WHICH 2>&1 | tee probe.txt || true
+          {
+            echo '## Probe'
+            echo '```'
+            cat probe.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
