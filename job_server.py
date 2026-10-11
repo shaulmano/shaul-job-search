@@ -2330,10 +2330,20 @@ _RELEVANT_TITLE_RE = re.compile(
 # than gotfriends, sqlink or nisha. The other five unscheduled scrapers were
 # audited at the same time and are dead: jobmaster, maof, sela and googlejobs
 # return no rows at all, one1 returns two and neither passes.
+# malamteam, sqlink and one1 are deliberately absent. All three answer a GitHub
+# runner with HTTP 403 behind Cloudflare — "Just a moment..." for Malam Team and
+# One1, a WAF block page for SQLink — measured 11/10/2026 by probe_broken.py.
+# It is not a selector that moved and no code here can fix it: the block is on
+# the address the scan comes from, not on what it asks for. Every other Israeli
+# board answers the same runner fine.
+#
+# They stay registered below, so a manual scan can still reach them from a
+# machine with a home address, and so the day one of them drops the WAF the work
+# is a one-line promotion back into this list.
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim',
-    'comeet', 'gotfriends', 'experis', 'dialog', 'sqlink', 'nisha',
-    'malamteam', 'one1', 'secretjobs', 'greenhouse',
+    'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
+    'secretjobs', 'greenhouse',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
