@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: '0 6 * * *'      # 09:00 Israel
   workflow_dispatch:
+    inputs:
+      sources:
+        description: 'Space-separated sources to audit (empty = all scheduled)'
+        required: false
+        default: ''
 
 concurrency:
   group: job-search-audit
@@ -33,9 +38,23 @@ jobs:
       # Deliberately not failing the workflow when a source is dead: the report
       # is the point, and a red cross in Actions is not something Shaul watches.
       # The Telegram message is what he reads.
+      # The report also goes to the run summary. Telegram is what Shaul reads,
+      # but a Telegram message cannot be opened later to see which stage a
+      # source died at, and Actions logs are awkward to read after the fact.
       - name: Audit every source
         continue-on-error: true
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python audit_sources.py --telegram
+          AUDIT_SOURCES: ${{ inputs.sources }}
+        run: |
+          args=""
+          for s in $AUDIT_SOURCES; do args="$args --source $s"; done
+          set -o pipefail
+          python audit_sources.py --telegram -v $args 2>&1 | tee audit_report.txt
+          {
+            echo '## Source audit'
+            echo '```'
+            cat audit_report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
