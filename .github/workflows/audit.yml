@@ -51,7 +51,9 @@ jobs:
           args=""
           for s in $AUDIT_SOURCES; do args="$args --source $s"; done
           set -o pipefail
-          python audit_sources.py --telegram -v $args 2>&1 | tee audit_report.txt
+          # The script exits non-zero when a source produces nothing, which is
+          # the normal case here and must not skip the summary below.
+          python audit_sources.py --telegram -v $args 2>&1 | tee audit_report.txt || true
           {
             echo '## Source audit'
             echo '```'
