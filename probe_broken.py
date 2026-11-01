@@ -110,7 +110,12 @@ def probe_one1():
 
 if __name__ == '__main__':
     print(f'curl_cffi available: {CF}')
+    # 'both' ו-'all' מפורשות, כי זה מה שכתוב בתיאור הקלט של ה-workflow.
+    # בלי זה הריצה הסתיימה בשקט בלי לבדוק כלום, וזה בדיוק סוג השקט שהיום
+    # הוקדש לחסל.
     which = sys.argv[1:] or ['sqlink', 'one1']
+    if any(w in ('both', 'all') for w in which):
+        which = ['sqlink', 'one1']
     if 'sqlink' in which:
         probe_sqlink()
     if 'one1' in which:
