@@ -108,11 +108,13 @@ def main():
     roles = js.SCHEDULED_ROLES
     log(f'Roles: {len(roles)}')
 
-    found, per_source = [], {}
+    found, per_source, errors = [], {}, {}
     for src in sources:
         scraper = js.SCRAPERS.get(src)
         if not scraper:
             log(f'  {src}: not registered, skipping')
+            errors[src] = 'not registered'
+            per_source[src] = 0
             continue
         got = 0
         for role in roles:
@@ -120,6 +122,10 @@ def main():
                 jobs = scraper(role, js._SCAN_WINDOW)
             except Exception as e:
                 log(f'  {src} / {role}: ERROR {type(e).__name__}: {e}')
+                # The first error is the useful one. Later roles usually fail
+                # the same way, and a reason field holding twelve copies of it
+                # tells nobody anything.
+                errors.setdefault(src, f'{type(e).__name__}: {e}'[:200])
                 continue
             if jobs:
                 found.extend(jobs)
@@ -137,20 +143,37 @@ def main():
     rows = list(unique.values())
     log(f'{len(found)} rows scraped, {len(rows)} unique by url')
 
-    if not rows:
-        log('Nothing to write. Done.')
-        return
-
     # The situation room decides on-target by title, exactly as its own sync
     # does, so a job arriving by this path is treated no differently.
     on_target_kw = ('qa', 'quality', 'test', 'release', 'delivery', 'program',
                     'project', 'pmo', 'בדיקות', 'איכות', 'פרויקט', 'תוכנית')
+
+    def on_target(j):
+        return any(k in (j.get('title') or '').lower() for k in on_target_kw)
 
     if dry:
         log('--dry-run: not writing. Sample:')
         for j in rows[:10]:
             log(f'  {j.get("source")} | {j.get("title")} | {j.get("company")}')
         return
+
+    # Which of these the database already has. Without this the run cannot say
+    # how many postings are actually new, and "scanned 468" reads like 468
+    # arrived when the real number may be zero.
+    known = set()
+    urls = [j['url'] for j in rows]
+    for i in range(0, len(urls), 200):
+        try:
+            got = sql('select url from jobs where url in (%s);'
+                      % ','.join(q(u) for u in urls[i:i + 200]))
+            known.update(r['url'] for r in (got or []))
+        except Exception as e:
+            # Not worth failing the run over. The count degrades, the write
+            # does not.
+            log(f'  could not check existing urls: {type(e).__name__}: {e}')
+            break
+
+    log(f'{len(rows) - len(known)} of them are new, {len(known)} already known')
 
     log(f'Writing {len(rows)} rows to the situation room...')
     written = 0
@@ -183,9 +206,49 @@ def main():
         written += len(chunk)
         log(f'  wrote {written}/{len(rows)}')
 
+    # Record the run in `scans`, the same table the cloud sources write to, so
+    # the sources screen in the situation room shows this path too.
+    #
+    # Until 1.11.2026 it did not, and the consequence was not cosmetic: a run
+    # that never fired, or fired and found nothing, looked exactly like a quiet
+    # market. Shaul noticed only weeks later, by the absence of jobs. A source
+    # that reports nothing cannot be seen to be broken.
+    by_source = {}
+    for j in rows:
+        s = j.get('source') or 'unknown'
+        cur = by_source.setdefault(s, {'raw': 0, 'on': 0, 'fresh': 0})
+        cur['raw'] += 1
+        if on_target(j):
+            cur['on'] += 1
+        if j['url'] not in known:
+            cur['fresh'] += 1
+
+    log('Recording the run...')
+    for src in sources:
+        c = by_source.get(src, {'raw': 0, 'on': 0, 'fresh': 0})
+        reason = errors.get(src)
+        # No error and no rows is still a failure worth seeing: a board that
+        # answers politely with nothing is a scraper whose selector moved.
+        if reason is None and per_source.get(src, 0) == 0:
+            reason = 'returned nothing'
+        try:
+            sql(
+                'insert into scans (source, raw, on_target, fresh, failed, '
+                'reason, ran_at) values (%s,%s,%s,%s,%s,%s,now());' % (
+                    q(src), per_source.get(src, 0), c['on'], c['fresh'],
+                    'true' if reason else 'false', q(reason),
+                )
+            )
+        except Exception as e:
+            log(f'  could not record {src}: {type(e).__name__}: {e}')
+
     log('Done.')
-    for src, n in per_source.items():
-        log(f'  {src}: {n}')
+    for src in sources:
+        c = by_source.get(src, {'raw': 0, 'on': 0, 'fresh': 0})
+        note = errors.get(src) or ('returned nothing'
+                                   if per_source.get(src, 0) == 0 else '')
+        log(f'  {src}: {per_source.get(src, 0)} scraped, {c["on"]} on target, '
+            f'{c["fresh"]} new{" | " + note if note else ""}')
 
 
 if __name__ == '__main__':
