@@ -111,6 +111,51 @@ def probe_one1():
         print(f'admin-ajax -> ERROR {type(e).__name__}: {e}')
 
 
+def probe_sqlink_rendered():
+    """אותם עמודים, אבל אחרי שה-JS רץ.
+
+    הסקרייפר של SQLink עובד דרך Playwright, והבדיקה למעלה מושכת HTML גולמי.
+    כשהשניים לא מסכימים, רק הגרסה המרונדרת אומרת מה הסקרייפר באמת רואה.
+    """
+    print('\n=== SQLink, rendered ===')
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print('playwright not installed')
+        return
+    urls = ['https://www.sqlink.com/career/db/',
+            'https://www.sqlink.com/hightechjob/']
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(locale='he-IL')
+        for u in urls:
+            try:
+                page.goto(u, wait_until='networkidle', timeout=45000)
+            except Exception as e:
+                print(f'{u} -> ERROR {type(e).__name__}: {e}')
+                continue
+            counts = {
+                'article': page.locator('article').count(),
+                '.job-item': page.locator('.job-item').count(),
+                '[class*=job]': page.locator('[class*="job"]').count(),
+                'li.wpjb-loop-row': page.locator('li.wpjb-loop-row').count(),
+            }
+            print(f'{u} -> rendered, title={page.title()!r}')
+            print(f'    {counts}')
+            hrefs = page.eval_on_selector_all(
+                'a[href]', 'els => els.map(e => e.href)')
+            jobish = [h for h in hrefs
+                      if any(k in h for k in ('/job/', 'jobid', 'job_id',
+                                              'position', '/vacanc'))]
+            print(f'    job-looking hrefs: {len(jobish)} '
+                  f'{sorted(set(jobish))[:6]}')
+            # מה הטקסט אומר: אם יש כאן משרות, הכותרות שלהן יופיעו.
+            heads = page.eval_on_selector_all(
+                'h2, h3', 'els => els.map(e => e.innerText.trim()).filter(Boolean)')
+            print(f'    first headings: {heads[:8]}')
+        browser.close()
+
+
 if __name__ == '__main__':
     print(f'curl_cffi available: {CF}')
     # 'both' ו-'all' מפורשות, כי זה מה שכתוב בתיאור הקלט של ה-workflow.
@@ -121,5 +166,6 @@ if __name__ == '__main__':
         which = ['sqlink', 'one1']
     if 'sqlink' in which:
         probe_sqlink()
+        probe_sqlink_rendered()
     if 'one1' in which:
         probe_one1()
