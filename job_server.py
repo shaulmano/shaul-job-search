@@ -727,12 +727,22 @@ def search_sqlink(role, time_filter='20h'):
         url = 'https://www.sqlink.com/career/db/'          # בדיקות ואוטומציה
     else:
         url = 'https://www.sqlink.com/career/dba/'         # מערכות מידע ותמיכה
+    # 1/11/2026: המשרות שם, הסקרייפר פשוט צילם מוקדם מדי.
+    #
+    # wait_sel היה 'a', וקישורי התפריט קיימים בעמוד מיד, כך שההמתנה הסתיימה
+    # לפני שרשימת המשרות בכלל נטענה. התוצאה הייתה אפס בכל ריצה, בלי שגיאה
+    # ובלי רמז. בדיקה מרונדרת ב-1/11 הראתה 710 תוצאות בתחום QA באותו עמוד.
+    #
+    # כל כרטיס הוא div.panel.job, הכותרת בתוכו h2 או h3, והקישור הוא הכתובת
+    # האמיתית של המשרה. ממתינים לכרטיס עצמו: אם הוא לא מופיע, Playwright
+    # זורק, וזה נרשם ככישלון במקום לחזור כשקט.
     return pw_scrape(
         url=url, source='SQLink', base_url='https://www.sqlink.com',
-        selectors=['article', '.job-item', '[class*="job"]', 'li.wpjb-loop-row'],
+        selectors=['div.panel.job', '.panel.job', 'article', '.job-item',
+                   'li.wpjb-loop-row'],
         title_sel='h2, h3, [class*="title"]',
         link_sel='a',
-        wait_sel='a',
+        wait_sel='div.panel.job',
     )
 
 
