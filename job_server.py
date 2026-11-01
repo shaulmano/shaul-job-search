@@ -2330,18 +2330,23 @@ _RELEVANT_TITLE_RE = re.compile(
 # than gotfriends, sqlink or nisha. The other five unscheduled scrapers were
 # audited at the same time and are dead: jobmaster, maof, sela and googlejobs
 # return no rows at all, one1 returns two and neither passes.
-# malamteam, sqlink and one1 are deliberately absent. All three answer a GitHub
-# runner with HTTP 403 behind Cloudflare — "Just a moment..." for Malam Team and
-# One1, a WAF block page for SQLink — measured 11/10/2026 by probe_broken.py.
-# It is not a selector that moved and no code here can fix it: the block is on
-# the address the scan comes from, not on what it asks for. Every other Israeli
-# board answers the same runner fine.
+# sqlink and one1 are deliberately absent. On 11/10/2026 all three of them, with
+# malamteam, answered a GitHub runner with HTTP 403 behind Cloudflare, measured
+# by probe_broken.py, and were moved to a scan on Shaul's own machine.
 #
-# They stay registered below, so a manual scan can still reach them from a
-# machine with a home address, and so the day one of them drops the WAF the work
-# is a one-line promotion back into this list.
+# 1/11/2026: malamteam is back here. The daily audit, which runs on an ordinary
+# GitHub runner, pulled 86,130 rows from it that morning. Whatever the WAF was
+# doing in October it is not doing to this board now, and a source that answers
+# the cloud has no business depending on one laptop being awake.
+#
+# The other two did not come back, and the reason is no longer Cloudflare. Run
+# from a home address on 1/11 they still returned nothing: SQLink answers and
+# parses to zero rows, which is a selector that moved, and One1 times out after
+# twenty seconds with zero bytes. Those are scraper faults, and relocating them
+# fixes nothing. They stay registered below so a manual scan can reach them, and
+# so a fix is a one-line promotion back into this list.
 SCHEDULED_SOURCES = [
-    'linkedin', 'alljobs', 'drushim',
+    'linkedin', 'alljobs', 'drushim', 'malamteam',
     'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
     'secretjobs', 'greenhouse',
 ]
