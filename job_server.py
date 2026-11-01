@@ -1493,21 +1493,24 @@ def search_one1(role, time_filter='20h'):
         return hit[1]
     base = 'https://www.one1.co.il'
     try:
-        post_data = (
-            'action=oneglobal_search_job_ajax&catid='
-            f'&searchtype=catsearch&career_page_link={quote(base + "/careers/")}'
+        # 1/11/2026: נקרא מהעמוד עצמו ולא מ-admin-ajax.
+        #
+        # הקריאה ל-admin-ajax הפסיקה לענות: 25 שניות ואפס בתים, גם מראנר של
+        # GitHub וגם מכתובת ביתית. זה לא 403 ולא חסימה, פשוט אין תשובה, ולכן
+        # המקור החזיר אפס בשקט כל ריצה, בזמן שכל תפקיד שילם עשרים שניות
+        # המתנה.
+        #
+        # בדיקה ב-1/11 הראתה ש-/careers/ מחזיר 200 ומכיל את אותן רשומות
+        # בדיוק, עשרה accordion_item עם עשרה job_title, ישירות ב-HTML. כלומר
+        # הקריאה הנפרדת הייתה מיותרת גם כשעבדה. בקשה אחת, בלי תלות בנקודת
+        # קצה שהאתר כנראה נטש.
+        r_resp = cf_requests.get(
+            f'{base}/careers/',
+            impersonate='chrome124', timeout=25,
+            headers={'Referer': base + '/'},
         )
-        r_resp = cf_requests.post(
-            f'{base}/wp-admin/admin-ajax.php?lang=he',
-            data=post_data,
-            impersonate='chrome124', timeout=20,
-            headers={
-                'Referer': f'{base}/careers/',
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
-        )
-        html = r_resp.json().get('html', '')
-        soup = BeautifulSoup(html, 'html.parser')
+        r_resp.raise_for_status()
+        soup = BeautifulSoup(r_resp.text or '', 'html.parser')
         jobs, seen = [], set()
         for item in soup.find_all('div', class_='accordion_item'):
             job_id = item.get('data-id', '')

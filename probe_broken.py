@@ -36,8 +36,11 @@ def _title(html):
 
 
 def probe_sqlink():
+    # 1/11: כל עמוד קטגוריה מצביע ראשון ל-/hightechjob/. ייתכן ששם יושבות
+    # המשרות עצמן, ולא בעמודי הקטגוריה שהסקרייפר קורא.
     print('\n=== SQLink ===')
     urls = [
+        'https://www.sqlink.com/hightechjob/',
         'https://www.sqlink.com/career/db/',
         'https://www.sqlink.com/career/dba/',
         'https://www.sqlink.com/career/',
