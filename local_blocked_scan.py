@@ -31,7 +31,10 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-BLOCKED_SOURCES = ['malamteam', 'sqlink', 'one1']
+# 1/11/2026: malamteam יצא מכאן וחזר לענן, שהוא כבר לא חוסם אותו, ו-secretjobs
+# נכנס. הוא מחזיר 403 לראנר של GitHub, ומפה הוא גם מרענן את העותק השמור של
+# רשימת המשרות שלו, שבלי ריענון מזקין עד שאף משרה בו לא עוברת את סינון הגיל.
+BLOCKED_SOURCES = ['secretjobs', 'sqlink', 'one1']
 PROJECT_REF = os.environ.get('SUPABASE_PROJECT_REF', 'egxsgxoecucmwaktprez')
 BATCH = 100
 

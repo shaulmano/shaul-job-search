@@ -815,6 +815,20 @@ def _sj_load_snapshot(which):
         return None
 
 
+def _sj_snapshot_age_days(which):
+    """גיל העותק השמור בימים, או None כשאין עותק או חותמת."""
+    try:
+        with open(_SJ_SNAPSHOT, encoding='utf-8') as f:
+            data = json.load(f)
+        stamp = data.get(which + '_fetched')
+        if not stamp:
+            return None
+        delta = _now_il() - datetime.fromisoformat(stamp)
+        return delta.total_seconds() / 86400
+    except Exception:
+        return None
+
+
 def _sj_save_snapshot(which, locs):
     try:
         try:
@@ -865,6 +879,22 @@ def _sj_sitemap(which):
         # Their edge will not serve this from the Actions region, however long
         # we wait. Fall back to the last copy that did come down: a job list a
         # few hours stale still surfaces jobs, and seen_jobs stops repeats.
+        #
+        # 1/11/2026: with an expiry, and the reason is worth keeping. The copy
+        # was nine days old, this source only accepts postings up to
+        # _SJ_MAX_AGE_DAYS, and so every entry in it failed the age gate. The
+        # run returned zero and looked exactly like a quiet market, for a week,
+        # while SecretJobs had been bringing 52 on-target jobs a month. A copy
+        # too old to produce a single result is not a fallback, it is a silence
+        # generator: better to fail loudly and let the source audit say so.
+        age = _sj_snapshot_age_days(which)
+        if age is not None and age > _SJ_MAX_AGE_DAYS:
+            raise RuntimeError(
+                f'{which} sitemap unreachable ({last}), and the stored copy is '
+                f'{age:.1f} days old — older than the {_SJ_MAX_AGE_DAYS}-day '
+                f'window, so nothing in it can pass. Refresh it by scanning '
+                f'secretjobs from an Israeli address.'
+            )
         stale = _sj_load_snapshot(which)
         if stale:
             print(f'  [SecretJobs] {which} unreachable — using the stored copy '
@@ -2345,10 +2375,15 @@ _RELEVANT_TITLE_RE = re.compile(
 # twenty seconds with zero bytes. Those are scraper faults, and relocating them
 # fixes nothing. They stay registered below so a manual scan can reach them, and
 # so a fix is a one-line promotion back into this list.
+#
+# secretjobs ירד מכאן באותו יום, מאותה סיבה הפוכה: הוא התחיל להחזיר 403
+# לראנר. הוא נראה תקין במשך שבוע רק משום שנפל חזרה לעותק שמור של רשימת
+# המשרות, שהזדקן עד שאף רשומה בו לא עברה את סינון הגיל. 52 משרות בחודש
+# נעלמו בשקט. הוא עבר לסריקה המקומית, שגם מרעננת שם את העותק.
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim', 'malamteam',
     'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
-    'secretjobs', 'greenhouse',
+    'greenhouse',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
