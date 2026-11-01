@@ -31,10 +31,15 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 1/11/2026: malamteam יצא מכאן וחזר לענן, שהוא כבר לא חוסם אותו, ו-secretjobs
-# נכנס. הוא מחזיר 403 לראנר של GitHub, ומפה הוא גם מרענן את העותק השמור של
-# רשימת המשרות שלו, שבלי ריענון מזקין עד שאף משרה בו לא עוברת את סינון הגיל.
-BLOCKED_SOURCES = ['secretjobs', 'sqlink', 'one1']
+# 1/11/2026: נשאר כאן מקור אחד בלבד.
+#
+# malamteam חזר לענן, שכבר לא חוסם אותו. sqlink ו-one1 חזרו גם הם: התברר
+# ששניהם לא היו חסומים אלא שבורים, ואחרי שתוקנו הם עונים לראנר כרגיל.
+#
+# secretjobs הוא היחיד שבאמת חסום: 403 בכל ניסיון מהענן. הסריקה מכאן היא גם
+# הדבר היחיד שמרענן את העותק השמור של רשימת המשרות שלו, ובלי ריענון הוא
+# מזקין עד שאף רשומה בו לא עוברת את סינון הגיל.
+BLOCKED_SOURCES = ['secretjobs']
 PROJECT_REF = os.environ.get('SUPABASE_PROJECT_REF', 'egxsgxoecucmwaktprez')
 BATCH = 100
 

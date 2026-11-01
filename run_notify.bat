@@ -5,7 +5,7 @@ REM It used to run the full scan, which the cloud already does every 90 minutes:
 REM the same boards, the same roles, a second Telegram message for the same jobs.
 REM Since 11/10/2026 it runs only what the cloud cannot reach.
 REM
-REM SecretJobs, SQLink and One1 answer a GitHub runner with HTTP 403 behind
+REM SecretJobs answers a GitHub runner with HTTP 403 behind
 REM Cloudflare, so they were taken out of SCHEDULED_SOURCES. From this machine
 REM they answer normally. This is now the only path by which those three reach
 REM the situation room, and the only thing this file does.
@@ -23,7 +23,7 @@ cd /d C:\Users\Shaul\Documents\job-search
 echo.
 echo  ====================================================
 echo   Scanning the boards Cloudflare blocks in the cloud
-echo   SecretJobs, SQLink, One1
+echo   SecretJobs
 echo  ====================================================
 echo.
 

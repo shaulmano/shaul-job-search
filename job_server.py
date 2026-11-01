@@ -2382,12 +2382,12 @@ _RELEVANT_TITLE_RE = re.compile(
 # doing in October it is not doing to this board now, and a source that answers
 # the cloud has no business depending on one laptop being awake.
 #
-# The other two did not come back, and the reason is no longer Cloudflare. Run
-# from a home address on 1/11 they still returned nothing: SQLink answers and
-# parses to zero rows, which is a selector that moved, and One1 times out after
-# twenty seconds with zero bytes. Those are scraper faults, and relocating them
-# fixes nothing. They stay registered below so a manual scan can reach them, and
-# so a fix is a one-line promotion back into this list.
+# sqlink ו-one1 חזרו גם הם באותו יום, אחרי שתוקנו. אף אחד מהם לא היה חסום
+# יותר, שניהם פשוט היו שבורים, וזה נראה זהה. ב-SQLink ההמתנה הייתה לקישור
+# כלשהו, שקיים בתפריט מיד, אז העמוד צולם לפני שהמשרות נטענו; ב-One1 נקודת
+# הקצה של admin-ajax הפסיקה לענות, בזמן שאותן משרות יושבות בעמוד עצמו.
+# אחרי התיקון, בדיקה בענן החזירה 215 שורות ו-6 על המטרה מ-SQLink, ו-110
+# שורות ו-1 מ-One1.
 #
 # secretjobs ירד מכאן באותו יום, מאותה סיבה הפוכה: הוא התחיל להחזיר 403
 # לראנר. הוא נראה תקין במשך שבוע רק משום שנפל חזרה לעותק שמור של רשימת
@@ -2396,7 +2396,7 @@ _RELEVANT_TITLE_RE = re.compile(
 SCHEDULED_SOURCES = [
     'linkedin', 'alljobs', 'drushim', 'malamteam',
     'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
-    'greenhouse',
+    'greenhouse', 'sqlink', 'one1',
 ]
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
