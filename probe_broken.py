@@ -153,6 +153,27 @@ def probe_sqlink_rendered():
             heads = page.eval_on_selector_all(
                 'h2, h3', 'els => els.map(e => e.innerText.trim()).filter(Boolean)')
             print(f'    first headings: {heads[:8]}')
+            # איזה אלמנט עוטף כותרת של משרה, ומה הקישור שלה. בלי זה אפשר רק
+            # לנחש סלקטור, וניחוש הוא בדיוק מה שהחזיר אפס כל השבוע.
+            shape = page.evaluate('''() => {
+                const out = [];
+                for (const h of document.querySelectorAll('h2, h3')) {
+                    const card = h.closest('[class*="job"], li, article, .card');
+                    if (!card) continue;
+                    const a = card.querySelector('a[href]') ||
+                              h.closest('a[href]');
+                    out.push({
+                        title: h.innerText.trim().slice(0, 40),
+                        card: card.tagName.toLowerCase() + '.' +
+                              (card.className || '').trim().split(/\\s+/).join('.'),
+                        href: a ? a.href : null,
+                    });
+                    if (out.length >= 5) break;
+                }
+                return out;
+            }''')
+            for s in shape:
+                print(f"      {s['title']!r} in {s['card'][:70]} -> {s['href']}")
         browser.close()
 
 
