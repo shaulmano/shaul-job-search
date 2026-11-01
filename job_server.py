@@ -3382,7 +3382,7 @@ a{{color:#6366f1;font-weight:700;text-decoration:none;display:block;margin-top:1
   <h2 style="color:#16a34a">הגשה {_hm.escape(msg)}</h2>
   <div style="font-weight:700">{_hm.escape(title)}</div>
   <div style="color:#64748b">{_hm.escape(company)}</div>
-  <a href="https://job-search-cloud.vercel.app/">📋 פתח מרכז חיפוש</a>
+  <a href="https://situation-room-rosy.vercel.app/">📋 פתח את חדר המצב</a>
 </div></body></html>'''.encode('utf-8')
             self.send_response(200)
             self._cors()
