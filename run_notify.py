@@ -20,7 +20,11 @@ foreign_filter.install(job_server)   # drop foreign companies before anything is
 
 mode = sys.argv[1].lower() if len(sys.argv) > 1 else 'full'
 
-if mode == 'linkedin':
+if mode == 'backfill':
+    # משלים תיאור למשרות ששמורות כבר ואין להן אחד. האיסוף בזמן הסריקה חל רק
+    # על משרות חדשות, ולכן בלי זה המסך נראה בדיוק כמו קודם.
+    job_server.backfill_descriptions(int(sys.argv[2]) if len(sys.argv) > 2 else 25)
+elif mode == 'linkedin':
     job_server._run_notify_job(
         sources=['linkedin'], always_notify=True, scope=' בלינקדאין')
 else:

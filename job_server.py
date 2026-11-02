@@ -2606,6 +2606,47 @@ def _enrich_descriptions(jobs):
     return jobs
 
 
+def backfill_descriptions(limit=_DESC_FETCH_CAP):
+    """ממלא תיאור למשרות שכבר שמורות ואין להן אחד.
+
+    האיסוף בזמן הסריקה חל רק על משרות חדשות, ולכן מה שכבר היה בקובץ נשאר
+    בלי תיאור. בלעדיו המסך נראה בדיוק כמו קודם, וזה מה ששאול ראה.
+
+    נקרא מ-run_notify.py backfill, וגם ידנית מהוורקפלו backfill.yml.
+    """
+    jobs = _load_jobs()
+    need = [j for j in jobs.values()
+            if not (j.get('description') or '').strip()
+            and (j.get('url') or '').startswith('http')
+            and any(k in (j.get('title') or '').lower() for k in _DESC_TITLES)]
+    # החדשות קודם: הן מה שמופיע על המסך היום.
+    need.sort(key=lambda j: j.get('first_seen') or '', reverse=True)
+    need = need[:limit]
+    if not need:
+        print('[backfill] nothing to fill')
+        return 0
+
+    print(f'[backfill] {len(need)} jobs without a description')
+    import concurrent.futures
+    got = 0
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+            results = list(ex.map(lambda j: (j, _page_description(j['url'])),
+                                  need, timeout=150))
+    except Exception as e:
+        print(f'[backfill] stopped early: {e}')
+        results = []
+    for job, text in results:
+        if text:
+            job['description'] = text
+            got += 1
+            print(f"  {job.get('source','?'):<12} {len(text):>5} chars  {job.get('title','')[:60]}")
+    if got:
+        _save_jobs(jobs)
+    print(f'[backfill] filled {got} of {len(need)}')
+    return got
+
+
 def _record_jobs(new_jobs: list) -> list:
     """Store the jobs that were actually reported, and stamp each with its id.
     Only reported jobs: those are the ones a button can appear on, and keeping
