@@ -2533,10 +2533,84 @@ def _keep_description(j):
     return desc[:3000] if any(k in title for k in _DESC_TITLES) else ''
 
 
+# כמה דפי משרה נמשכים בריצה אחת. כל משיכה היא בקשה נוספת ללוח, וזה בדיוק
+# הדבר שמזמין 429 על החיפושים שבאמת חשובים. התקרה נמוכה בכוונה: מה שלא
+# נתפס היום ייתפס מחר, כי משרה נשארת בפיד כמה ימים.
+_DESC_FETCH_CAP = 25
+_DESC_MIN_CHARS = 180
+
+# לוחות שאין טעם לנסות: הדף הוא מעטפת JavaScript והבקשה חוזרת בלי טקסט.
+_DESC_SKIP_SOURCES = {'linkedin'}      # לינקדאין נמשך כבר ב-_linkedin_fetch_recruiter
+
+
+def _page_description(url):
+    """הטקסט המהותי מדף משרה ציבורי, או מחרוזת ריקה.
+
+    הגישה גנרית בכוונה: אחד עשר לוחות, ואין טעם בסלקטור לכל אחד. מורידים את
+    מה שאף פעם אינו תוכן, ולוקחים את גוש הטקסט הארוך ביותר שנשאר. זה מחזיר
+    תיאור טוב ברובם, ושום דבר באחרים, וזה עדיף על אפס בכולם.
+    """
+    try:
+        r = cf_requests.get(url, impersonate='chrome124', timeout=15)
+        if r.status_code != 200:
+            return ''
+        soup = BeautifulSoup(r.content.decode('utf-8', errors='replace'), 'html.parser')
+    except Exception:
+        return ''
+
+    for tag in soup(['script', 'style', 'nav', 'header', 'footer', 'form', 'noscript']):
+        tag.decompose()
+
+    best = ''
+    for el in soup.find_all(['article', 'section', 'div', 'main']):
+        # רק גושים בלי גושים אחרים בתוכם, אחרת הגדול ביותר הוא תמיד body.
+        if el.find(['article', 'section', 'div', 'main']):
+            continue
+        text = el.get_text(' ', strip=True)
+        if len(text) > len(best):
+            best = text
+    if len(best) < _DESC_MIN_CHARS:
+        # דף שמחזיק את הכל בפסקאות ולא בגושים.
+        best = ' '.join(p.get_text(' ', strip=True) for p in soup.find_all('p'))
+    return best[:3000] if len(best) >= _DESC_MIN_CHARS else ''
+
+
+def _enrich_descriptions(jobs):
+    """משלים תיאור למשרות על המטרה שאין להן אחד, עד התקרה.
+
+    שאול לא מצליח להעתיק מודעות מהטלפון, ובלי תיאור הניקוד עובד לפי הכותרת
+    בלבד וייצור קורות חיים דורש הדבקה ידנית. לכן התיאור נאסף בזמן הסריקה,
+    פעם אחת, במקום להתבקש ממנו שוב ושוב.
+    """
+    import concurrent.futures
+    need = [j for j in jobs
+            if not (j.get('li_description') or '').strip()
+            and (j.get('source') or '').lower() not in _DESC_SKIP_SOURCES
+            and any(k in (j.get('title') or '').lower() for k in _DESC_TITLES)
+            and (j.get('url') or '').startswith('http')][:_DESC_FETCH_CAP]
+    if not need:
+        return jobs
+
+    print(f'[descriptions] fetching {len(need)} job pages')
+    got = 0
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+            for job, text in zip(need, ex.map(lambda j: _page_description(j['url']),
+                                              need, timeout=90)):
+                if text:
+                    job['li_description'] = text
+                    got += 1
+    except Exception as e:
+        print(f'[descriptions] stopped early: {e}')
+    print(f'[descriptions] got {got} of {len(need)}')
+    return jobs
+
+
 def _record_jobs(new_jobs: list) -> list:
     """Store the jobs that were actually reported, and stamp each with its id.
     Only reported jobs: those are the ones a button can appear on, and keeping
     every scraped posting would grow the file by hundreds per scan."""
+    new_jobs = _enrich_descriptions(new_jobs)
     jobs = _load_jobs()
     now = _now_il()
     stamped = 0
