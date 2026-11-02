@@ -2506,6 +2506,33 @@ def _save_jobs(jobs: dict):
         print(f'  [jobs] save failed: {e}')
 
 
+# הכותרות שחדר המצב מחשיב "על המטרה". הרשימה הזאת היא שכפול מכוון של
+# ON_TARGET ב-sync/jobs_sync.py במאגר situation-room, שם היא מקור האמת.
+# היא נשמרת כאן רק כדי להחליט על מי שומרים תיאור, ולכן הפרש קטן בינה לבין
+# המקור עולה תיאור מיותר או חסר, ולא משרה חסרה.
+_DESC_TITLES = ("qa", "quality", "test", "release", "delivery",
+                "program", "project", "pmo",
+                "בדיקות", "איכות", "פרויקט", "תוכנית", "תכנית")
+
+
+def _keep_description(j):
+    """התיאור מלינקדאין, רק למשרות שנראות על המטרה לפי הכותרת.
+
+    _linkedin_fetch_recruiter כבר מושך אותו מהעמוד הציבורי כדי לזהות SaaS,
+    והוא נזרק לפני הכתיבה לקובץ. בלי תיאור הניקוד עובד לפי הכותרת בלבד, וכל
+    ייצור קורות חיים דרש משאול להדביק את המודעה ידנית, בזמן שהיא כבר היתה
+    בידיים.
+
+    מסננים לפי כותרת כדי ש-jobs.jsonl, שנדחף בכל ריצה, לא יתנפח באלפי
+    תיאורים של משרות שלא רלוונטיות.
+    """
+    desc = (j.get('li_description') or '').strip()
+    if not desc:
+        return ''
+    title = (j.get('title') or '').lower()
+    return desc[:3000] if any(k in title for k in _DESC_TITLES) else ''
+
+
 def _record_jobs(new_jobs: list) -> list:
     """Store the jobs that were actually reported, and stamp each with its id.
     Only reported jobs: those are the ones a button can appear on, and keeping
@@ -2531,6 +2558,14 @@ def _record_jobs(new_jobs: list) -> list:
             'posted':         j.get('date') or '',
             'location':       j.get('location') or '',
             'saas':           bool(_is_saas(j)),
+            # התיאור כבר נשלף מלינקדאין ב-_linkedin_fetch_recruiter, שימש לזיהוי
+            # SaaS, ונזרק כאן. זאת היתה טעות שעלתה ביוקר: בלי תיאור הניקוד עובד
+            # לפי הכותרת בלבד, וכל ייצור קורות חיים דרש משאול להדביק את המודעה
+            # ידנית. אותה בקשה בדיוק כבר יצאה, והתשובה היתה בידיים.
+            #
+            # רק מהמשרות שעל המטרה, כדי שהקובץ הזה, שנדחף בכל ריצה, לא יתנפח
+            # באלפי תיאורים של משרות שלא רלוונטיות.
+            'description':    _keep_description(j),
             'recruiter_name': j.get('recruiter_name') or '',
             'recruiter_url':  j.get('recruiter_url') or '',
             'first_seen':     now.isoformat(timespec='seconds'),
