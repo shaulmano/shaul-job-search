@@ -146,11 +146,13 @@ def _linkedin_page(role, tpr, start):
         f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}'
         f'&start={start}&count=50'
     )
-    for attempt in range(3):
+    # ארבעה ניסיונות ולא שלושה, והמתנה ראשונה קצרה: עמוד שננטש הוא משרות
+    # שלא נכנסו, וזה יקר יותר מעוד עשר שניות של המתנה.
+    for attempt in range(4):
         try:
             r = requests.get(url, headers=HEADERS, timeout=20)
             if r.status_code == 429:
-                wait = 15 * (attempt + 1)
+                wait = 10 * (attempt + 1)
                 print(f'  [linkedin] 429 — waiting {wait}s before retry...')
                 time.sleep(wait)
                 continue
@@ -158,9 +160,9 @@ def _linkedin_page(role, tpr, start):
             time.sleep(3)   # throttle: min 3s between LinkedIn requests
             return r.text
         except requests.exceptions.HTTPError:
-            if attempt == 2:
+            if attempt == 3:
                 raise
-    raise Exception('LinkedIn 429 after 3 retries')
+    raise Exception('LinkedIn 429 after 4 retries')
 
 
 def search_linkedin(role, time_filter='20h'):
@@ -2945,10 +2947,26 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
                 stats[source]['errors'].append(f'{type(e).__name__}: {e}')
             print(f'  [notify] {source}/{role} error: {e}')
 
+    # לינקדאין מקבל חצי מהתפקידים בכל ריצה, לסירוגין.
+    #
+    # 8.11.2026: לינקדאין ירד מ-157 משרות בשבוע ל-126, והיומן מלא ב-429. עם
+    # 14 תפקידים וחמישה עמודים לכל אחד זה 70 בקשות בכל סריקה, כל שעה וחצי,
+    # מכתובת של GitHub שחולקים איתנו עוד הרבה. כל 429 עולה גם המתנה וגם את
+    # העמוד עצמו, כלומר משרות שלא נכנסו.
+    #
+    # חצי תפקידים בכל ריצה זה 35 בקשות במקום 70, ושתי ריצות מכסות את כולם
+    # בתוך שלוש שעות. משרה נשארת בפיד כמה ימים, ולכן לא מפספסים כלום, ובתמורה
+    # מקבלים פחות 429 וכן את העמודים שעד היום אבדו.
+    def _roles_for(src):
+        if src != 'linkedin':
+            return SCHEDULED_ROLES
+        half = _now_il().hour % 2
+        return [r for i, r in enumerate(SCHEDULED_ROLES) if i % 2 == half]
+
     threads = [
         threading.Thread(target=fetch, args=(src, role), daemon=True)
-        for role in SCHEDULED_ROLES
         for src in sources
+        for role in _roles_for(src)
     ]
     for t in threads:
         t.start()
@@ -2961,7 +2979,9 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     with lock:
         collected = list(results)   # stable snapshot; abandoned threads may still append
     for src in sources:
-        stats[src]['timed_out'] = len(SCHEDULED_ROLES) - stats[src]['done']
+        # לפי מספר התפקידים שהמקור הזה באמת קיבל, אחרת לינקדאין נראה כאילו
+        # חצי מהתפקידים שלו פג להם הזמן בכל ריצה.
+        stats[src]['timed_out'] = len(_roles_for(src)) - stats[src]['done']
 
     # Deduplicate by URL
     seen_now, all_jobs = set(), []
