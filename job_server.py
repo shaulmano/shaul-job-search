@@ -2791,6 +2791,53 @@ def _send_sectioned(header: str, sections: list, footer: str = ''):
         _send_notification(msg)
 
 
+# כותרות ממקצועות אחרים שנכנסות דרך המילים "פרויקט" ו"איכות".
+#
+# 8.11.2026: שאול אמר שנכנסות משרות לא רלוונטיות, ובדיקה הראתה בדיוק את זה:
+# מנהל מחלקת חשבונות פרויקטים באגף הכספים, מנהל QA לתחום החשמל, מנהל שילובים
+# ובדיקות במטוסים, מנהל אבטחת איכות ורגולציה, Marketing Project Manager
+# ומנהל ביצוע פרויקטים בבנייה. שתי המילים האלה קיימות בכל ענף, ולכן השער
+# החיובי לבדו לא מספיק.
+#
+# _NONTECH למעלה מסנן לפי חברה. זה שער נפרד שמסנן לפי **כותרת**, ומשאיר את
+# הקיים כמו שהוא.
+_OFF_DOMAIN = [
+    # בנייה וביצוע
+    'ביצוע פרויקט', 'אתר בנייה', 'שיפוץ', 'אדריכל', 'קונסטרוקצי',
+    # רגולציה, פארמה, מזון, קוסמטיקה
+    'רגולציה', 'qa/ra', 'תרופות', 'פארמה', 'רוקח', 'קוסמטיק', 'מזון',
+    'תברואה', 'gmp',
+    # חשמל, מכונות, ייצור
+    'חשמל', 'מכונות', 'ייצור', 'מכטרוני', 'ריתוך',
+    # תעופה, ביטחון, רכב
+    'מטוסים', 'טילאות', 'טילים', 'תחמושת', 'כלי רכב', 'אווירונאוטי',
+    # כספים, רכש, מנהלה
+    'חשבונות', 'גבייה', 'גביה', 'כספים', 'רכש', 'שכר וכוח אדם',
+    # שיווק, מכירות, משאבי אנוש
+    'marketing', 'שיווק', 'מכירות', 'sales', 'משאבי אנוש', 'גיוס עובדים',
+    # לוגיסטיקה
+    'לוגיסטיק', 'מחסן', 'שרשרת אספקה',
+]
+
+# מילה שמעידה שהמשרה בכל זאת בעולם התוכנה. היא מבטלת את הפסילה, כי
+# "מנהל פרויקט הטמעת ERP" ו"מנהל פרויקטים רוחביים ודיגיטל" הן בדיוק המשרות
+# שכן מעניינות, והמילים "רכש" ו"שיווק" יכולות להופיע בהן כתחום הלקוח.
+_TECH_SIGNAL_RE = re.compile(
+    r'(?i)\b(software|saas|hi-?tech|web|cloud|data|ai|ml|devops|r&d|erp|crm|'
+    r'sap|priority|it|ict|cyber|digital|mobile|app|api|qa automation|automation|'
+    r'systems?|platform|product)\b'
+    r'|הייטק|תוכנה|סייבר|דיגיטל|מערכות מידע|פיתוח|אוטומציה|ענן'
+)
+
+
+def _off_domain(job):
+    """פוסל כותרת ששייכת בבירור למקצוע אחר, אלא אם יש בה סימן תוכנה."""
+    title = (job.get('title') or '').lower()
+    if not any(w in title for w in _OFF_DOMAIN):
+        return False
+    return not _TECH_SIGNAL_RE.search(job.get('title') or '')
+
+
 def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope=''):
     """Scan `sources` and push anything new to Telegram.
 
@@ -2989,6 +3036,15 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
         return not any(kw in text for kw in _NONTECH)
     new_jobs = [j for j in new_jobs if _is_hitech(j)]
+
+    # שער הכותרת. מדווח מה ירד, אחרת מסנן שפוסל יותר מדי נראה כמו שוק שקט.
+    _before_domain = len(new_jobs)
+    _off = [j for j in new_jobs if _off_domain(j)]
+    for j in _off:
+        print(f"  [domain] dropped: {(j.get('title') or '')[:70]}")
+    new_jobs = [j for j in new_jobs if not _off_domain(j)]
+    if _before_domain != len(new_jobs):
+        print(f'[notify] {_before_domain - len(new_jobs)} dropped as another profession')
 
     # Age gate. Sources that state a date get held to Shaul's two-day rule; the
     # ones that state none pass here and are bounded by _SCAN_WINDOW instead.
