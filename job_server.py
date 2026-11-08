@@ -393,6 +393,16 @@ _DRUSHIM_HE_MAP  = {
     'project':     ['project','פרויקט','pm','תוכנית','ניהול פרויקט'],
     'program':     ['program','programme','תוכנית','פרוגרם','pmo','פרויקט'],
     'product':     ['product','מוצר','פרודקט'],
+    # 8.11.2026: לא היה מיפוי לעברית למשפחת ה-Delivery, ולכן בלוחות העבריים
+    # היא כמעט לא נתפסה. בישראל קוראים לתפקיד הזה "מנהל הטמעה", "מנהל יישום"
+    # או "מנהל שירות", ולא "Delivery Manager".
+    #
+    # "אספקה" לא נכנס בכוונה: הוא מביא שרשרת אספקה ולוגיסטיקה, וזה בדיוק
+    # הענף שהשער החדש פוסל.
+    'delivery':       ['delivery','הטמעה','הטמעות','יישום','מסירה'],
+    'implementation': ['implementation','הטמעה','הטמעות','יישום','יישומים'],
+    'release':        ['release','גרסאות','שחרור','ריליס'],
+    'service':        ['service','שירות','שירותים'],
 }
 
 def _drushim_keywords(role):
@@ -2237,6 +2247,17 @@ SCHEDULED_ROLES = [
     # Same target as Release Manager and answered with the same CV; the two are
     # one job under two names depending on the company.
     'Delivery Manager',
+    # 8.11.2026: שאול ביקש יותר משרות Delivery. "Delivery Manager" לבדו מחמיץ
+    # את השמות שהשוק הישראלי נותן לאותו תפקיד. שלושת אלה הם אותה עבודה:
+    # Service Delivery אצל ספקי שירות, Technical Delivery בחברות מוצר,
+    # ו-Implementation הוא Professional Services בשם אחר, שזה התפקיד שהוא
+    # ניהל בקיומרקטס.
+    #
+    # כל תפקיד נוסף הוא עוד סבב בקשות לכל מקור, ולינקדאין כבר מחזיר 429 על
+    # חלק מהן. אם זה יחמיר, המסקנה היא סבב מתחלף ולא עוד תפקידים.
+    'Service Delivery Manager',
+    'Technical Delivery Manager',
+    'Implementation Manager',
     # Added 09/09/2026. A low-volume, high-fit stream, and measured as such:
     # four queries over ~180 LinkedIn results returned five roles that genuinely
     # carry both AI and project/programme management. Four of those five were
