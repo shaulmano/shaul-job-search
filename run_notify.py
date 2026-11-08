@@ -25,7 +25,8 @@ if mode == 'sample':
     # ש-GotFriends ו-Nisha מחזירים שורות וכל אחת מהן נופלת בשער התחום, ולכן
     # הם לא תרמו אף משרה מעולם בזמן שהם נראים כמו מקור שעובד.
     src = sys.argv[2] if len(sys.argv) > 2 else 'gotfriends'
-    role = sys.argv[3] if len(sys.argv) > 3 else 'Project Manager'
+    # join: התפקיד הוא שתי מילים ויותר, והוא מגיע מהוורקפלו בלי מרכאות.
+    role = ' '.join(sys.argv[3:]) or 'Project Manager'
     scraper = job_server.SCRAPERS.get(src)
     if not scraper:
         raise SystemExit(f'unknown source: {src}. known: {", ".join(sorted(job_server.SCRAPERS))}')
