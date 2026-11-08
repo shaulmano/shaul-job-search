@@ -944,6 +944,33 @@ def _sj_sitemap(which):
             f'{which} sitemap unreachable after {len(_SJ_BACKOFF)} tries and no '
             f'stored copy exists (Vercel cache miss from this region): {last}')
     locs = [u for u in re.findall(r'<loc>([^<]+)</loc>', r.text) if '/he/' not in u]
+
+    # 8.11.2026: SecretJobs פיצלו את ה-sitemap לשברים, והעמוד הראשי הפך
+    # לאינדקס. הקוד קרא אותו, מצא 16 כתובות, וחשב שאלה 16 משרות. המקור נראה
+    # כאילו מת מ-23.10 והוא רק שינה מבנה, ובינתיים אבדו כ-29 משרות בשבוע.
+    #
+    # אם מה שחזר הוא עצמו קובצי xml, יורדים שבר־שבר ומצרפים.
+    shards = [u for u in locs if u.lower().endswith('.xml')]
+    if shards and len(shards) == len(locs):
+        print(f'  [SecretJobs] {which} is an index of {len(shards)} sitemaps — following them')
+        collected = []
+        for shard in shards:
+            for attempt, wait in enumerate(_SJ_BACKOFF):
+                try:
+                    rs = requests.get(shard, headers=HEADERS, timeout=90)
+                    rs.raise_for_status()
+                    collected += [u for u in re.findall(r'<loc>([^<]+)</loc>', rs.text)
+                                  if '/he/' not in u]
+                    break
+                except Exception as e:
+                    if attempt == len(_SJ_BACKOFF) - 1:
+                        print(f'  [SecretJobs] shard {shard} failed: {e}')
+                    else:
+                        time.sleep(wait)
+        # שבר אחד שנפל הוא חלק מהמשרות, ולא סיבה לזרוק את כל מה שכן ירד.
+        if collected:
+            locs = collected
+            print(f'  [SecretJobs] {which}: {len(locs)} entries across {len(shards)} sitemaps')
     if which == 'companies':
         locs = {u.rsplit('/', 1)[-1] for u in locs if '/companies/' in u}
     print(f'  [SecretJobs] {which} sitemap: {len(locs)} entries')
