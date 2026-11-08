@@ -10,6 +10,10 @@ on:
         description: 'sqlink, one1, or both (space separated)'
         required: false
         default: 'sqlink one1'
+      sample:
+        description: 'instead, print what one source returns raw: "<source> <role>"'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -22,13 +26,30 @@ jobs:
         with:
           python-version: '3.11'
 
+      # מדפיס מה מקור מחזיר לפני כל שער. GotFriends ו-Nisha נראים כמו מקור
+      # שעובד ומחזירים שורות, וכל אחת מהן נופלת בשער התחום.
       - name: Install dependencies
         run: pip install requests beautifulsoup4 lxml curl_cffi playwright tzdata
 
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
 
+      - name: Sample one source
+        if: inputs.sample != ''
+        env:
+          SAMPLE: ${{ inputs.sample }}
+        run: |
+          set -o pipefail
+          python run_notify.py sample $SAMPLE 2>&1 | tee sample.txt || true
+          {
+            echo '## Sample'
+            echo '```'
+            cat sample.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Probe
+        if: inputs.sample == ''
         env:
           WHICH: ${{ inputs.which }}
         run: |
