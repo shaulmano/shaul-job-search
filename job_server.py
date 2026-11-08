@@ -311,6 +311,9 @@ _ALLJOBS_POSITION_IDS = {
     'release manager':               [237, 1548],   # no release-specific category exists
     'delivery manager':              [237, 1548, 1187],
     'professional services manager': [1647, 237],   # Professional Services
+    # 8.11.2026: התפקיד הזה נסרק מאז ספטמבר ו-AllJobs דילג עליו בכל פעם, כי
+    # לא היה לו מיפוי ואין לו קטגוריה משלו. קטגוריות ה-QA הן הקרובות ביותר.
+    'ai quality engineer':           [824, 1365],
 }
 
 # 237  מנהל פרויקטים בתוכנה              129 vacancies
@@ -860,6 +863,18 @@ def _sj_save_snapshot(which, locs):
                 data = json.load(f)
         except Exception:
             data = {}
+        # 8.11.2026: ריצה מקומית החזירה 16 כתובות והעותק השמור החזיק 18,665.
+        # הקוד דרס אותו בלי לשאול, וזה הופך תקלה חולפת באתר לנזק קבוע: העותק
+        # הטוב נמחק, ואין ממה להתאושש עד שהאתר יחזור לעצמו.
+        #
+        # ירידה של יותר מ-80% היא סימן לתשובה חלקית ולא לשוק שהתרוקן, ולכן
+        # היא נרשמת ולא נשמרת. עותק ישן וטוב עדיף על עותק טרי וריק.
+        prev = data.get(which) or []
+        if prev and len(locs) < len(prev) * 0.2:
+            print(f'  [SecretJobs] refusing to overwrite {len(prev)} stored '
+                  f'{which} entries with {len(locs)} — looks like a partial '
+                  f'answer, keeping the stored copy')
+            return
         data[which] = sorted(locs)
         data[which + '_fetched'] = _now_il().isoformat(timespec='seconds')
         with open(_SJ_SNAPSHOT, 'w', encoding='utf-8') as f:
