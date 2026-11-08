@@ -399,8 +399,10 @@ _DRUSHIM_HE_MAP  = {
     #
     # "אספקה" לא נכנס בכוונה: הוא מביא שרשרת אספקה ולוגיסטיקה, וזה בדיוק
     # הענף שהשער החדש פוסל.
+    # 'הטמעה' ו'יישום' נשארים תחת delivery בלבד: בעברית הם מופיעים גם ב"מנהל
+    # פרויקט הטמעת ERP", שזאת משרה טובה. באנגלית implementation הוא תפקיד
+    # אחר לגמרי, ושאול סוגר אותו כמעט תמיד, ולכן אין לו מפתח משלו.
     'delivery':       ['delivery','הטמעה','הטמעות','יישום','מסירה'],
-    'implementation': ['implementation','הטמעה','הטמעות','יישום','יישומים'],
     'release':        ['release','גרסאות','שחרור','ריליס'],
     'service':        ['service','שירות','שירותים'],
 }
@@ -2257,7 +2259,9 @@ SCHEDULED_ROLES = [
     # חלק מהן. אם זה יחמיר, המסקנה היא סבב מתחלף ולא עוד תפקידים.
     'Service Delivery Manager',
     'Technical Delivery Manager',
-    'Implementation Manager',
+    # 'Implementation Manager' נוסף והוסר באותו יום. הנתונים אמרו את ההפך
+    # מהניחוש: שאול סגר ב-X את implementation ב-14 מתוך 16 ואת implementer
+    # ב-9 מתוך 9. הוא כבר ענה על השאלה הזאת, רק שאף אחד לא הסתכל.
     # Added 09/09/2026. A low-volume, high-fit stream, and measured as such:
     # four queries over ~180 LinkedIn results returned five roles that genuinely
     # carry both AI and project/programme management. Four of those five were
@@ -2838,6 +2842,10 @@ _OFF_DOMAIN = [
     'marketing', 'שיווק', 'מכירות', 'sales', 'משאבי אנוש', 'גיוס עובדים',
     # לוגיסטיקה
     'לוגיסטיק', 'מחסן', 'שרשרת אספקה',
+    # 8.11.2026, מתוך 1,509 המשרות שנסגרו ב-X. אלה לא ניחוש: לכל מילה כאן
+    # יש שיעור סגירה של 88% ומעלה על ארבע הופעות לפחות.
+    'implementer', 'implementation manager', 'trading', 'hris', 'workforce',
+    'servicenow', 'chip', 'מכרזים', 'שכר', 'הנדסת', 'אנרגיה',
 ]
 
 # מילה שמעידה שהמשרה בכל זאת בעולם התוכנה. היא מבטלת את הפסילה, כי
