@@ -486,37 +486,40 @@ def search_drushim(role, time_filter='20h'):
     if not CURL_CFFI_OK:
         return []
     base = 'https://www.drushim.co.il'
+    keywords = _drushim_keywords(role)
     try:
-        raw, seen = [], set()
+        jobs, seen = [], set()
         for term in _drushim_terms(role):
             for j in _drushim_page(term):
                 jid = j.get('id')
-                if jid and jid not in seen:
+                if jid and jid in seen:
+                    continue
+                if jid:
                     seen.add(jid)
-                    raw.append(j)
+                title = (j.get('title') or '').strip()
+                if not title or not any(k in title.lower() for k in keywords):
+                    continue
+                url = j.get('jobUrl') or ''
+                if url and not url.startswith('http'):
+                    url = base + url
+                jobs.append({
+                    'title': title[:120],
+                    'company': (j.get('companyName') or '').strip()[:80],
+                    'date': (j.get('publishedAtIso') or '')[:10],
+                    'url': url,
+                    'source': 'Drushim',
+                    'location': (j.get('city') or 'Israel')[:60],
+                    'description': (j.get('description') or '')[:3000],
+                })
             # הביטוי המלא מדויק יותר, אבל "מצא משהו" אינו "מצא מספיק": תוצאה
             # אחת עצרה את החיפוש והשאירה את שאר המודעות בחוץ. ממשיכים עד
             # שיש מסה סבירה.
-            if len(raw) >= 8:
+            #
+            # הסינון עבר לתוך הלולאה בכוונה: כשהמכסה נספרה על השורות הגולמיות,
+            # "Technical Program" החזיר שמונה שורות לא רלוונטיות, החיפוש נעצר,
+            # והחיפושים בעברית לא נוסו מעולם. נספר רק מה שבאמת נשמר.
+            if len(jobs) >= 8:
                 break
-        keywords = _drushim_keywords(role)
-        jobs = []
-        for j in raw:
-            title = (j.get('title') or '').strip()
-            if not title or not any(k in title.lower() for k in keywords):
-                continue
-            url = j.get('jobUrl') or ''
-            if url and not url.startswith('http'):
-                url = base + url
-            jobs.append({
-                'title': title[:120],
-                'company': (j.get('companyName') or '').strip()[:80],
-                'date': (j.get('publishedAtIso') or '')[:10],
-                'url': url,
-                'source': 'Drushim',
-                'location': (j.get('city') or 'Israel')[:60],
-                'description': (j.get('description') or '')[:3000],
-            })
         return jobs[:50]
     except Exception as e:
         print(f'  [Drushim] error: {e}')
