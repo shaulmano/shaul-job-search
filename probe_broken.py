@@ -177,6 +177,41 @@ def probe_sqlink_rendered():
         browser.close()
 
 
+def probe_gotfriends_categories():
+    """רשימת הקטגוריות של GotFriends, כדי לדעת לאן למפות כל תפקיד.
+
+    9.11.2026: שישה תפקידים — project, program, technical program, pmo,
+    release ו-delivery — ממופים כולם ל-development-manager-jobs, שזאת
+    קטגוריית ניהול פיתוח ומחזירה Head of R&D ו-Engineering Manager. שאול
+    סוגר אותן. קריאה בלבד: רק מדפיס מה יש בתפריט.
+    """
+    from playwright.sync_api import sync_playwright
+    print('\n=== GotFriends categories ===')
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        try:
+            page.goto('https://www.gotfriends.co.il/jobslobby/',
+                      wait_until='domcontentloaded', timeout=45000)
+            page.wait_for_timeout(4000)
+            links = page.evaluate("""() => {
+                const seen = new Set(), out = [];
+                for (const a of document.querySelectorAll('a[href*="/jobslobby/"]')) {
+                    const u = new URL(a.href).pathname;
+                    if (seen.has(u)) continue;
+                    seen.add(u);
+                    out.push([u, (a.innerText || '').trim().slice(0, 50)]);
+                }
+                return out;
+            }""")
+            print(f'  {len(links)} category links')
+            for path, label in sorted(links):
+                print(f'    {path:<60} {label}')
+        except Exception as e:
+            print(f'  error: {e}')
+        browser.close()
+
+
 if __name__ == '__main__':
     print(f'curl_cffi available: {CF}')
     # 'both' ו-'all' מפורשות, כי זה מה שכתוב בתיאור הקלט של ה-workflow.
@@ -190,3 +225,5 @@ if __name__ == '__main__':
         probe_sqlink_rendered()
     if 'one1' in which:
         probe_one1()
+    if 'gfcats' in which:
+        probe_gotfriends_categories()
