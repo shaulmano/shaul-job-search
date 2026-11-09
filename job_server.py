@@ -536,15 +536,20 @@ GOTFRIENDS_ROLE_URLS = {
     'qa manager':               '/jobslobby/qa/qa-team-leader/',
     'qa director':              '/jobslobby/qa/',
     'qa team leader':           '/jobslobby/qa/qa-team-leader/',
-    'delivery manager':         '/jobslobby/executive-position/development-manager-jobs/',
     'director of qa':           '/jobslobby/qa/',
-    'r&d program manager':      '/jobslobby/executive-position/development-manager-jobs/',
-    'technical program manager':'/jobslobby/executive-position/development-manager-jobs/',
-    'program manager':          '/jobslobby/executive-position/development-manager-jobs/',
-    'project manager':          '/jobslobby/executive-position/development-manager-jobs/',
-    'pmo manager':              '/jobslobby/executive-position/development-manager-jobs/',
-    'release manager':          '/jobslobby/executive-position/development-manager-jobs/',
-    'professional services manager': '/jobslobby/executive-position/development-manager-jobs/',
+    # 9.11.2026: ששת התפקידים האלה הופנו כולם ל-development-manager-jobs,
+    # שזאת קטגוריית "מנהל פיתוח" ומחזירה Head of R&D ו-Engineering Manager.
+    # שאול סוגר אותן כמעט תמיד, ובניתוח הסגירות שלו הן יצאו עם אחוז סגירה
+    # גבוה. ל-GotFriends יש קטגוריה נכונה, /jobslobby/projects/project_manager/,
+    # והיא פשוט לא הייתה במיפוי. היא נמצאה בסריקת התפריט שלו באותו יום.
+    'project manager':          '/jobslobby/projects/project_manager/',
+    'program manager':          '/jobslobby/projects/project_manager/',
+    'technical program manager':'/jobslobby/projects/project_manager/',
+    'r&d program manager':      '/jobslobby/projects/project_manager/',
+    'pmo manager':              '/jobslobby/projects/project_manager/',
+    'delivery manager':         '/jobslobby/projects/project_manager/',
+    'release manager':          '/jobslobby/projects/project_manager/',
+    'professional services manager': '/jobslobby/projects/project_manager/',
 }
 
 def _gotfriends_scrape_url(url, role):
