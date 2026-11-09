@@ -1,0 +1,58 @@
+name: Unsee rejected jobs
+
+# מוציא מ-seen_jobs משרות של מקור אחד שנסרקו, נפסלו, ולא דווחו מעולם.
+#
+# למה זה צריך להתקיים: הסריקה רושמת כל כתובת שנסרקה, גם אחת שנפסלה בשער,
+# ולכן שינוי במסנן לא חל לאחור. כשחלון הגיל של דרושים נפתח ל-14 יום
+# ב-9.11.2026, 892 משרות שנפסלו קודם נשארו מסומנות כנראו.
+#
+# מה שכבר דווח נשאר ב-seen_jobs, ולכן אין פה התראה כפולה.
+#
+# ידני בלבד. הריצה בענן היא הבעלים של seen_jobs.json, ולכן זה רץ כאן ולא
+# מהמחשב של שאול.
+on:
+  workflow_dispatch:
+    inputs:
+      needle:
+        description: 'substring of the url, e.g. drushim.co.il'
+        required: true
+
+concurrency:
+  group: job-search-seen
+  cancel-in-progress: false
+
+jobs:
+  unsee:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Unsee
+        env:
+          NEEDLE: ${{ inputs.needle }}
+        run: |
+          set -o pipefail
+          python run_notify.py unsee "$NEEDLE" 2>&1 | tee unsee.txt
+          {
+            echo '## Unsee'
+            echo '```'
+            cat unsee.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit
+        run: |
+          git config user.name  'job-search-bot'
+          git config user.email 'bot@users.noreply.github.com'
+          if git diff --quiet seen_jobs.json; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git add seen_jobs.json
+          git commit -m "unsee: ${{ inputs.needle }} שנפסלו ולא דווחו חוזרות למשחק"
+          git fetch origin && git rebase origin/main
+          git push origin HEAD:main
