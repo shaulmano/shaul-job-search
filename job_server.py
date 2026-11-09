@@ -2431,7 +2431,11 @@ _RELEVANT_TITLE_RE = re.compile(
     r'|project\s+manager|project\s+management'
     # Deliberately the two-word forms, not a bare "delivery": on the Israeli
     # boards that word alone is mostly couriers and food delivery.
-    r'|delivery\s+manager|delivery\s+management|delivery\s+lead'
+    # 9.11.2026: "דרוש מנהל תחום Delivery בפ"ת" נפסל כאן, וזה בדיוק התפקיד
+    # ששאול ביקש יותר ממנו יום לפני כן. השער הזה רץ אחרי שער הניהול, ולכן כל
+    # כותרת שמגיעה אליו היא כבר כותרת ניהולית: "delivery" לבד לא יכול להיות
+    # שליח. משלוחי מזון בעברית הם "משלוחים" וממילא לא עוברים את שער הניהול.
+    r'|delivery'
     r'|professional\s+services)\b'
     # Israeli boards write these roles in transliteration as often as in
     # Hebrew. "דליברי" is the software sense; food delivery is "משלוחים",
