@@ -42,7 +42,6 @@ elif mode == 'gates':
     #
     #   python run_notify.py gates drushim
     import collections
-    from datetime import timedelta
 
     src = sys.argv[2] if len(sys.argv) > 2 else 'drushim'
     scraper = job_server.SCRAPERS.get(src)
@@ -59,8 +58,6 @@ elif mode == 'gates':
         print(f'  {role:<32} {len(got):>3} rows, {len(fresh):>3} not already counted')
     print(f'\n[gates] {src}: {len(rows)} distinct rows scraped\n')
 
-    cutoff = (job_server._now_il().date()
-              - timedelta(days=job_server._MAX_JOB_AGE_DAYS)).isoformat()
     GATES = [
         ('mgmt',     lambda j: job_server._is_mgmt(j.get('title') or '')),
         ('badtitle', lambda j: job_server._is_relevant_title(j.get('title') or '')),
@@ -68,7 +65,7 @@ elif mode == 'gates':
                                     j.get('title') or ''))),
         ('nontech',  lambda j: job_server._is_hitech(j)),
         ('domain',   lambda j: not job_server._off_domain(j)),
-        ('age',      lambda j: not (j.get('date') or '') or j['date'][:10] >= cutoff),
+        ('age',      job_server._within_age),
     ]
     alive = rows
     for name, keep in GATES:

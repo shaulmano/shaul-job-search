@@ -41,6 +41,19 @@ except ImportError:
 # ride on _SCAN_WINDOW instead, which is the closest thing to a date they have.
 _MAX_JOB_AGE_DAYS = 2
 
+# 9.11.2026: כלל היומיים נכתב מול לוחות שנסרקים כל שעה ומחזירים את מה שפורסם
+# עכשיו. דרושים הוא לא כזה: הוא מחזיר קטלוג שפרוס על שבועות. במצב gates על
+# דרושים, שער הגיל פסל 43 מתוך 44 המשרות ששרדו את כל השערים האחרים, ובהן
+# "Technical Program Manager", "מנהל.ת תוכנית" באלביט ו"מנהל/ת פרויקטים AI
+# ו-DATA" בקבוצת יעל. מתוך 150 שורות שרדה אחת.
+#
+# שאול בחר ב-9.11.2026 בחלון לפי מקור. דרושים מקבל 14 יום, השאר נשארים על
+# יומיים כי הם נסרקים כל שעה וממילא מחזירים טרי. סקרטג'ובס במיוחד נשאר
+# הדוק: שם החציון היה 49 יום והוא לחץ על משרה שנסגרה חודש קודם.
+_MAX_AGE_BY_SOURCE = {
+    'Drushim': 14,
+}
+
 PORT = int(os.environ.get('PORT', 8765))
 PW_SEMAPHORE = threading.Semaphore(1)       # max 1 Chromium instance at once
 _LINKEDIN_LOCK = threading.Semaphore(1)     # max 1 LinkedIn request at a time
@@ -3023,6 +3036,21 @@ _NONTECH = [
     # already require a QA / release / project / delivery management role,
     # which is what actually keeps an insurance-sales post out.
 ]
+def _max_age_for(source):
+    """כמה ימים אחורה מותר למקור הזה. ברירת המחדל היא הכלל של שאול, יומיים."""
+    return _MAX_AGE_BY_SOURCE.get(source or '', _MAX_JOB_AGE_DAYS)
+
+
+def _within_age(job):
+    """משרה בלי תאריך עוברת: אין על מה לפסול אותה, והיא חסומה ב-_SCAN_WINDOW."""
+    date = (job.get('date') or '')[:10]
+    if not date:
+        return True
+    cutoff = (_now_il().date()
+              - timedelta(days=_max_age_for(job.get('source')))).isoformat()
+    return date >= cutoff
+
+
 def _is_hitech(job):
     text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
     return not any(kw in text for kw in _NONTECH)
@@ -3214,13 +3242,19 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     # ones that state none pass here and are bounded by _SCAN_WINDOW instead.
     # SecretJobs made the case for this: its listings had a median age of 49
     # days and he clicked one that had closed a month earlier.
-    _cutoff = (_now_il().date() - timedelta(days=_MAX_JOB_AGE_DAYS)).isoformat()
     _before_age = len(new_jobs)
-    new_jobs = [j for j in new_jobs
-                if not (j.get('date') or '') or (j['date'][:10] >= _cutoff)]
+    _aged = [j for j in new_jobs if not _within_age(j)]
+    if _aged:
+        by_src = collections.Counter(j.get('source') for j in _aged)
+        print(f'[gate:age] dropped {len(_aged)}: '
+              + ', '.join(f'{k}={v}' for k, v in by_src.most_common()))
+        for j in _aged[:12]:
+            print(f'  [age] {(j.get("date") or "?")[:10]}  '
+                  f'{(j.get("title") or "")[:62]}')
+    new_jobs = [j for j in new_jobs if _within_age(j)]
     _aged_out = _before_age - len(new_jobs)
     if _aged_out:
-        print(f'[notify] {_aged_out} dropped as older than {_MAX_JOB_AGE_DAYS} days')
+        print(f'[notify] {_aged_out} dropped as too old')
 
     # Drop anything already dealt with.
     #
