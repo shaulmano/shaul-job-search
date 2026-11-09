@@ -433,11 +433,23 @@ _DRUSHIM_STRIP = {'manager', 'director', 'head', 'of', 'team', 'leader', 'lead',
 
 
 def _drushim_terms(role):
+    """הביטוי המלא, גרסה מקוצרת שלו, והמילים העבריות של אותו תפקיד.
+
+    9.11.2026: שאול שאל למה הוא לא מקבל משרות מדרושים לתפקידים שהוא רואה שם
+    בעצמו. החיפוש של דרושים מדויק מאוד, ו-"Technical Program Manager" מחזיר
+    בו תוצאה אחת. בנוסף דרושים הוא לוח עברי: רוב המודעות כתובות "מנהל/ת
+    פרויקטים" ולא באנגלית, ועד היום חיפשנו בו רק באנגלית.
+    """
     terms = [role]
     reduced = ' '.join(w for w in role.split()
                        if w.lower() not in _DRUSHIM_STRIP)
     if reduced and reduced.lower() != role.lower():
         terms.append(reduced)
+    # המילים העבריות של התפקיד, כל אחת כחיפוש נפרד. הן מביאות גם מודעות
+    # מענפים אחרים, ובדיוק בשביל זה נכתב שער התחום יום לפני כן.
+    for kw in _drushim_keywords(role):
+        if kw not in terms and not kw.isascii():
+            terms.append(kw)
     return terms
 
 
@@ -482,9 +494,10 @@ def search_drushim(role, time_filter='20h'):
                 if jid and jid not in seen:
                     seen.add(jid)
                     raw.append(j)
-            # The full phrase is the precise one; only widen when it found
-            # nothing, so a role that already works keeps its narrower results.
-            if raw:
+            # הביטוי המלא מדויק יותר, אבל "מצא משהו" אינו "מצא מספיק": תוצאה
+            # אחת עצרה את החיפוש והשאירה את שאר המודעות בחוץ. ממשיכים עד
+            # שיש מסה סבירה.
+            if len(raw) >= 8:
                 break
         keywords = _drushim_keywords(role)
         jobs = []
