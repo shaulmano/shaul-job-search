@@ -35,6 +35,51 @@ if mode == 'sample':
     for r in rows[:25]:
         print(f"  title={r.get('title','')!r}")
         print(f"     company={r.get('company','')!r}  url={(r.get('url') or '')[:90]}")
+elif mode == 'gates':
+    # מריץ את שערי הסינון על מה שמקור מחזיר, בלי מסד, בלי seen_jobs, בלי
+    # הודעות, ומדפיס מי פסל מה. נולד ב-9.11.2026: דרושים החזיר חמישים משרות
+    # חדשות, כולן נפסלו, ולא היה שום מקום לשאול מי פסל אותן.
+    #
+    #   python run_notify.py gates drushim
+    import collections
+    from datetime import timedelta
+
+    src = sys.argv[2] if len(sys.argv) > 2 else 'drushim'
+    scraper = job_server.SCRAPERS.get(src)
+    if not scraper:
+        raise SystemExit(f'unknown source: {src}')
+
+    rows, seen_urls = [], set()
+    for role in job_server.SCHEDULED_ROLES:
+        got = scraper(role) or []
+        fresh = [r for r in got if r.get('url') and r['url'] not in seen_urls]
+        for r in fresh:
+            seen_urls.add(r['url'])
+        rows += fresh
+        print(f'  {role:<32} {len(got):>3} rows, {len(fresh):>3} not already counted')
+    print(f'\n[gates] {src}: {len(rows)} distinct rows scraped\n')
+
+    cutoff = (job_server._now_il().date()
+              - timedelta(days=job_server._MAX_JOB_AGE_DAYS)).isoformat()
+    GATES = [
+        ('mgmt',     lambda j: job_server._is_mgmt(j.get('title') or '')),
+        ('badtitle', lambda j: job_server._is_relevant_title(j.get('title') or '')),
+        ('topic',    lambda j: bool(job_server._RELEVANT_TITLE_RE.search(
+                                    j.get('title') or ''))),
+        ('nontech',  lambda j: job_server._is_hitech(j)),
+        ('domain',   lambda j: not job_server._off_domain(j)),
+        ('age',      lambda j: not (j.get('date') or '') or j['date'][:10] >= cutoff),
+    ]
+    alive = rows
+    for name, keep in GATES:
+        gone = [j for j in alive if not keep(j)]
+        alive = [j for j in alive if keep(j)]
+        print(f'[{name:<8}] dropped {len(gone):>3}, {len(alive):>3} left')
+        for j in gone[:10]:
+            print(f'      {(j.get("title") or "")[:62]:<62} @ {(j.get("company") or "")[:24]}')
+    print(f'\n[gates] {len(alive)} of {len(rows)} survive every gate')
+    for j in alive[:30]:
+        print(f'  KEEP  {(j.get("title") or "")[:62]:<62} @ {(j.get("company") or "")[:24]}')
 elif mode == 'backfill':
     # משלים תיאור למשרות ששמורות כבר ואין להן אחד. האיסוף בזמן הסריקה חל רק
     # על משרות חדשות, ולכן בלי זה המסך נראה בדיוק כמו קודם.

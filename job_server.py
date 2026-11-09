@@ -2936,6 +2936,93 @@ def _off_domain(job):
     return not _TECH_SIGNAL_RE.search(job.get('title') or '')
 
 
+# ── שערי הכותרת והחברה ────────────────────────────────────────────────────────
+# 9.11.2026: אלה היו מוגדרים בתוך _run_notify_job, ולכן אי אפשר היה לבדוק
+# אותם בלי להריץ סריקה שלמה. כששאול שאל למה דרושים לא מביא, דרושים החזיר
+# חמישים משרות חדשות וכולן נפסלו, ולא היה שום מקום לשאול מי פסל אותן.
+# הועברו לרמת המודול כדי ש-"run_notify.py gates <מקור>" יוכל להריץ אותם.
+# ההגדרות עצמן לא שונו.
+
+# Keep only management-level jobs. Team leads are included — "QA Team Leader"
+# is one of the roles being searched for.
+def _is_mgmt(title):
+    t = title.lower()
+    return any(kw in t for kw in [
+        'מנהל', 'manager', 'director', 'head of', 'vp', 'vice president',
+        'ראש צוות', 'team lead', 'group leader', 'טים ליד',
+        # "QA Lead" is the same job as "QA Team Leader" and was being
+        # dropped. Spelled out per domain rather than a bare 'lead', which
+        # would also let in "Lead Engineer" and "Tech Lead". The domain word
+        # has to come first, so "Lead QA Engineer" still reads as an IC.
+        'qa lead', 'test lead', 'delivery lead', 'release lead',
+        'program lead', 'project lead', 'pmo lead',
+    ]) or ('ראש' in t and 'צוות' not in t)
+
+# Exclude irrelevant job types (hardware/electronics/materials/defense engineering)
+_BAD_TITLE_KW = [
+    # Shaul is not an automation person and does not want to run automation.
+    # This rejects the whole family, "QA Automation Manager" included — his
+    # explicit call on 19/08/2026, accepting that a "QA Manager (Manual &
+    # Automation)" style title goes with it.
+    'automation', 'אוטומציה',
+    # Quality management outside software. A month-wide sweep surfaced
+    # "Head of Quality Assurance (Construction)", "Director Sterile
+    # Operational Quality Assurance" and "Global Quality & Sustainability
+    # Manager" — all of which clear the topic gate on the word quality.
+    # The company list only knew בנייה and קבלן, in Hebrew, so nothing
+    # written in English was caught. Title-level, so a software QA post at
+    # a pharma company is still fine.
+    'construction', 'קבלנ', 'sterile', 'pharmaceutical', 'gmp',
+    'regulatory affairs', 'quality systems', 'sustainability',
+    'תוכנית עסקית', 'פרויקטים הנדסיים',
+    # AllJobs files software QA and factory-floor quality control under the
+    # same category (824, "מנהל איכות | מנהל QA"), so opening it up brought
+    # in a piping company, a food plant and an industrial manufacturer.
+    # These mark the factory sense; 'תעשייה ביטחונית' deliberately is not
+    # here, since defence-tech postings at Elbit and IAI are on target.
+    'צנרת', 'מפעל', 'תעשייתי', 'מכון התקנים',
+    'v&v', 'validation', 'verification',
+    'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
+    'composite', 'חומרים', 'materials',
+    'hardware', 'חומרה', 'מכונות', 'mechanical',
+    'עיצוב', 'design engineer',
+    'business development',
+    'sales', 'מכירות',
+    'procurement', 'רכש',
+]
+def _is_relevant_title(title):
+    t = title.lower()
+    return not any(kw in t for kw in _BAD_TITLE_KW)
+
+
+# Keep only hi-tech / tech-adjacent companies
+_NONTECH = [
+    'cnc', 'renewable energy', 'אנרגיה מתחדשת', 'אנרגיה ירוקה',
+    'שמירה ואבטחה', 'מוקד שמירה', 'שרותי שמירה', 'אבטחה פיזית',
+    'בנייה', 'קבלן', 'שיפוצים', 'ניקיון',
+    # Stems, not whole words: the list said 'מסעדה' and 'מאפייה', which miss
+    # 'מסעדת מזון מהיר' and 'מאפיית X' — and a food company advertising
+    # מנהל בקרת איכות clears the topic gate on איכות.
+    'מזון ומשקאות', 'מאפי', 'מסעד', 'קייטרינג',
+    'חקלאות', 'כרייה', 'נדל"ן', 'real estate',
+    'הובלה', 'לוגיסטיקה', 'שינוע',
+    # Retail and health funds used to be listed here — קמעונאות/סופרמרקט
+    # and בית חולים/מרפאה. Removed 03/09/2026: the September plan targets
+    # enterprise IT inside exactly those organisations (שופרסל, פוקס,
+    # רמי לוי, כללית, מכבי), which run large in-house IT groups hiring
+    # these very titles. Same reasoning as the insurers below — the title
+    # gates already require a QA / release / project / delivery management
+    # role, which is what keeps a checkout clerk or a ward nurse out.
+    # The insurers used to be listed here — הפניקס, מגדל, כלל, ביטוח ישיר.
+    # They all run large in-house R&D arms and hire exactly these titles, so
+    # blocking them by name threw away real jobs. The title gates above
+    # already require a QA / release / project / delivery management role,
+    # which is what actually keeps an insurance-sales post out.
+]
+def _is_hitech(job):
+    text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
+    return not any(kw in text for kw in _NONTECH)
+
 def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope=''):
     """Scan `sources` and push anything new to Telegram.
 
@@ -3064,57 +3151,6 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     # returning things that never match what is being searched for.
     unseen_by_label = collections.Counter(j.get('source') for j in new_jobs)
 
-    # Keep only management-level jobs. Team leads are included — "QA Team Leader"
-    # is one of the roles being searched for.
-    def _is_mgmt(title):
-        t = title.lower()
-        return any(kw in t for kw in [
-            'מנהל', 'manager', 'director', 'head of', 'vp', 'vice president',
-            'ראש צוות', 'team lead', 'group leader', 'טים ליד',
-            # "QA Lead" is the same job as "QA Team Leader" and was being
-            # dropped. Spelled out per domain rather than a bare 'lead', which
-            # would also let in "Lead Engineer" and "Tech Lead". The domain word
-            # has to come first, so "Lead QA Engineer" still reads as an IC.
-            'qa lead', 'test lead', 'delivery lead', 'release lead',
-            'program lead', 'project lead', 'pmo lead',
-        ]) or ('ראש' in t and 'צוות' not in t)
-
-    # Exclude irrelevant job types (hardware/electronics/materials/defense engineering)
-    _BAD_TITLE_KW = [
-        # Shaul is not an automation person and does not want to run automation.
-        # This rejects the whole family, "QA Automation Manager" included — his
-        # explicit call on 19/08/2026, accepting that a "QA Manager (Manual &
-        # Automation)" style title goes with it.
-        'automation', 'אוטומציה',
-        # Quality management outside software. A month-wide sweep surfaced
-        # "Head of Quality Assurance (Construction)", "Director Sterile
-        # Operational Quality Assurance" and "Global Quality & Sustainability
-        # Manager" — all of which clear the topic gate on the word quality.
-        # The company list only knew בנייה and קבלן, in Hebrew, so nothing
-        # written in English was caught. Title-level, so a software QA post at
-        # a pharma company is still fine.
-        'construction', 'קבלנ', 'sterile', 'pharmaceutical', 'gmp',
-        'regulatory affairs', 'quality systems', 'sustainability',
-        'תוכנית עסקית', 'פרויקטים הנדסיים',
-        # AllJobs files software QA and factory-floor quality control under the
-        # same category (824, "מנהל איכות | מנהל QA"), so opening it up brought
-        # in a piping company, a food plant and an industrial manufacturer.
-        # These mark the factory sense; 'תעשייה ביטחונית' deliberately is not
-        # here, since defence-tech postings at Elbit and IAI are on target.
-        'צנרת', 'מפעל', 'תעשייתי', 'מכון התקנים',
-        'v&v', 'validation', 'verification',
-        'אלקטרוניקה', 'electronics', 'ייצור', 'manufacturing',
-        'composite', 'חומרים', 'materials',
-        'hardware', 'חומרה', 'מכונות', 'mechanical',
-        'עיצוב', 'design engineer',
-        'business development',
-        'sales', 'מכירות',
-        'procurement', 'רכש',
-    ]
-    def _is_relevant_title(title):
-        t = title.lower()
-        return not any(kw in t for kw in _BAD_TITLE_KW)
-
     before_mgmt = len(new_jobs)
 
     # 9.11.2026: שלושת השערים האלה שתקו. דרושים החזיר 50 משרות חדשות, כולן
@@ -3151,33 +3187,6 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     new_jobs = [j for j in new_jobs if _RELEVANT_TITLE_RE.search(j.get('title', '') or '')]
     dropped = before_topic - len(new_jobs)
 
-    # Keep only hi-tech / tech-adjacent companies
-    _NONTECH = [
-        'cnc', 'renewable energy', 'אנרגיה מתחדשת', 'אנרגיה ירוקה',
-        'שמירה ואבטחה', 'מוקד שמירה', 'שרותי שמירה', 'אבטחה פיזית',
-        'בנייה', 'קבלן', 'שיפוצים', 'ניקיון',
-        # Stems, not whole words: the list said 'מסעדה' and 'מאפייה', which miss
-        # 'מסעדת מזון מהיר' and 'מאפיית X' — and a food company advertising
-        # מנהל בקרת איכות clears the topic gate on איכות.
-        'מזון ומשקאות', 'מאפי', 'מסעד', 'קייטרינג',
-        'חקלאות', 'כרייה', 'נדל"ן', 'real estate',
-        'הובלה', 'לוגיסטיקה', 'שינוע',
-        # Retail and health funds used to be listed here — קמעונאות/סופרמרקט
-        # and בית חולים/מרפאה. Removed 03/09/2026: the September plan targets
-        # enterprise IT inside exactly those organisations (שופרסל, פוקס,
-        # רמי לוי, כללית, מכבי), which run large in-house IT groups hiring
-        # these very titles. Same reasoning as the insurers below — the title
-        # gates already require a QA / release / project / delivery management
-        # role, which is what keeps a checkout clerk or a ward nurse out.
-        # The insurers used to be listed here — הפניקס, מגדל, כלל, ביטוח ישיר.
-        # They all run large in-house R&D arms and hire exactly these titles, so
-        # blocking them by name threw away real jobs. The title gates above
-        # already require a QA / release / project / delivery management role,
-        # which is what actually keeps an insurance-sales post out.
-    ]
-    def _is_hitech(job):
-        text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
-        return not any(kw in text for kw in _NONTECH)
     _non_tech = [j for j in new_jobs if not _is_hitech(j)]
     if _non_tech:
         by_src = collections.Counter(j.get('source') for j in _non_tech)

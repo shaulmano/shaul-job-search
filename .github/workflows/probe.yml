@@ -14,6 +14,10 @@ on:
         description: 'instead, print what one source returns raw: "<source> <role>"'
         required: false
         default: ''
+      gates:
+        description: 'instead, run every filter over one source and print who dropped what'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -35,7 +39,7 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - name: Sample one source
-        if: inputs.sample != ''
+        if: inputs.sample != '' && inputs.gates == ''
         env:
           SAMPLE: ${{ inputs.sample }}
         run: |
@@ -48,8 +52,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # מריץ את כל שערי הסינון על מקור אחד ומדפיס מי פסל מה. קריאה בלבד:
+      # אין מסד, אין seen_jobs, אין הודעות.
+      - name: Run the filters over one source
+        if: inputs.gates != ''
+        env:
+          GATES: ${{ inputs.gates }}
+        run: |
+          set -o pipefail
+          python run_notify.py gates "$GATES" 2>&1 | tee gates.txt || true
+          {
+            echo '## Gates'
+            echo '```'
+            cat gates.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Probe
-        if: inputs.sample == ''
+        if: inputs.sample == '' && inputs.gates == ''
         env:
           WHICH: ${{ inputs.which }}
         run: |
