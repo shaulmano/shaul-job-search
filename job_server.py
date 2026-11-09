@@ -3116,11 +3116,38 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
         return not any(kw in t for kw in _BAD_TITLE_KW)
 
     before_mgmt = len(new_jobs)
-    new_jobs = [j for j in new_jobs if _is_mgmt(j.get('title', '') or '')]
-    new_jobs = [j for j in new_jobs if _is_relevant_title(j.get('title', '') or '')]
+
+    # 9.11.2026: שלושת השערים האלה שתקו. דרושים החזיר 50 משרות חדשות, כולן
+    # נפסלו, ובלוג לא היה שום רמז מי מהם פסל אותן. אותו עיוורון מסביר את
+    # GotFriends, שמחזיר שורות רלוונטיות ואף אחת לא נכנסת.
+    #
+    # מדפיס מי פסל ומה. אין פה שינוי התנהגות, רק דיווח.
+    def _report_gate(name, jobs, keep_fn):
+        kept = [j for j in jobs if keep_fn(j.get('title', '') or '')]
+        gone = [j for j in jobs if j not in kept]
+        if gone:
+            by_src = collections.Counter(j.get('source') for j in gone)
+            print(f'[gate:{name}] dropped {len(gone)}: '
+                  + ', '.join(f'{k}={v}' for k, v in by_src.most_common()))
+            for j in gone[:12]:
+                print(f'  [{name}] {(j.get("source") or "?")[:12]:<12} '
+                      f'{(j.get("title") or "")[:68]}')
+        return kept
+
+    new_jobs = _report_gate('mgmt', new_jobs, _is_mgmt)
+    new_jobs = _report_gate('badtitle', new_jobs, _is_relevant_title)
     # On-topic gate: applies to every source, including the ones that are trusted
     # to honour the search query (LinkedIn, AllJobs, Drushim) but do not.
     before_topic = len(new_jobs)
+    _off_topic = [j for j in new_jobs
+                  if not _RELEVANT_TITLE_RE.search(j.get('title', '') or '')]
+    if _off_topic:
+        by_src = collections.Counter(j.get('source') for j in _off_topic)
+        print(f'[gate:topic] dropped {len(_off_topic)}: '
+              + ', '.join(f'{k}={v}' for k, v in by_src.most_common()))
+        for j in _off_topic[:12]:
+            print(f'  [topic] {(j.get("source") or "?")[:12]:<12} '
+                  f'{(j.get("title") or "")[:68]}')
     new_jobs = [j for j in new_jobs if _RELEVANT_TITLE_RE.search(j.get('title', '') or '')]
     dropped = before_topic - len(new_jobs)
 
@@ -3151,6 +3178,14 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
     def _is_hitech(job):
         text = ((job.get('title') or '') + ' ' + (job.get('company') or '')).lower()
         return not any(kw in text for kw in _NONTECH)
+    _non_tech = [j for j in new_jobs if not _is_hitech(j)]
+    if _non_tech:
+        by_src = collections.Counter(j.get('source') for j in _non_tech)
+        print(f'[gate:nontech] dropped {len(_non_tech)}: '
+              + ', '.join(f'{k}={v}' for k, v in by_src.most_common()))
+        for j in _non_tech[:12]:
+            print(f'  [nontech] {(j.get("source") or "?")[:12]:<12} '
+                  f'{(j.get("title") or "")[:48]} @ {(j.get("company") or "")[:28]}')
     new_jobs = [j for j in new_jobs if _is_hitech(j)]
 
     # שער הכותרת. מדווח מה ירד, אחרת מסנן שפוסל יותר מדי נראה כמו שוק שקט.
