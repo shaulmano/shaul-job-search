@@ -49,8 +49,11 @@ def main():
         print(f'  {url}')
     if not drop:
         return
+    # אותו פורמט בדיוק שבו _save_seen_jobs כותב: {'urls': [...]} עם indent=2,
+    # שורה לכל כתובת. בלי זה העריכה הזאת מייצרת דיף של 17 אלף שורות ומתנגשת
+    # עם כל ריצה מקבילה.
     with open('seen_jobs.json', 'w', encoding='utf-8') as fh:
-        json.dump(sorted(kept), fh, ensure_ascii=False)
+        json.dump({'urls': sorted(kept)}, fh, indent=2)
     print('[unsee] seen_jobs.json rewritten')
 
 
