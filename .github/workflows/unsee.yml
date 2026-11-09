@@ -36,7 +36,7 @@ jobs:
           NEEDLE: ${{ inputs.needle }}
         run: |
           set -o pipefail
-          python run_notify.py unsee "$NEEDLE" 2>&1 | tee unsee.txt
+          python unsee.py "$NEEDLE" 2>&1 | tee unsee.txt
           {
             echo '## Unsee'
             echo '```'

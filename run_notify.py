@@ -77,50 +77,6 @@ elif mode == 'gates':
     print(f'\n[gates] {len(alive)} of {len(rows)} survive every gate')
     for j in alive[:30]:
         print(f'  KEEP  {(j.get("title") or "")[:62]:<62} @ {(j.get("company") or "")[:24]}')
-elif mode == 'unsee':
-    # מוציא מ-seen_jobs משרות של מקור אחד שנסרקו, נפסלו, ולא דווחו מעולם.
-    #
-    # 9.11.2026: הסריקה רושמת ב-seen_jobs כל כתובת שנסרקה, גם אחת שנפסלה
-    # בשער. המשמעות היא ששינוי במסנן לא חל לאחור: אחרי שחלון הגיל של דרושים
-    # נפתח ל-14 יום, 892 משרות שנפסלו קודם נשארו מסומנות כנראו ולא היו
-    # מגיעות לשאול לעולם.
-    #
-    # מה שכן דווח נשאר ב-seen_jobs, ולכן אין פה סיכון להתראה כפולה.
-    #
-    #   python run_notify.py unsee drushim.co.il
-    import json
-
-    needle = sys.argv[2] if len(sys.argv) > 2 else ''
-    if not needle:
-        raise SystemExit('usage: run_notify.py unsee <substring of the url>')
-
-    seen = json.load(open('seen_jobs.json', encoding='utf-8'))
-    if isinstance(seen, dict):
-        seen = list(seen.get('urls') or seen.keys())
-
-    reported = set()
-    with open('jobs.jsonl', encoding='utf-8') as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except ValueError:
-                continue
-            url = rec.get('url') or (rec.get('job') or {}).get('url')
-            if url:
-                reported.add(url)
-
-    drop = {u for u in seen if needle in u and u not in reported}
-    kept = [u for u in seen if u not in drop]
-    print(f'[unsee] {len(seen)} seen, {len(drop)} matching "{needle}" were never '
-          f'reported and go back into play, {len(kept)} kept')
-    for u in sorted(drop)[:5]:
-        print(f'  {u}')
-    with open('seen_jobs.json', 'w', encoding='utf-8') as fh:
-        json.dump(sorted(kept), fh, ensure_ascii=False)
-    print('[unsee] seen_jobs.json rewritten')
 elif mode == 'backfill':
     # משלים תיאור למשרות ששמורות כבר ואין להן אחד. האיסוף בזמן הסריקה חל רק
     # על משרות חדשות, ולכן בלי זה המסך נראה בדיוק כמו קודם.
