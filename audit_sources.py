@@ -20,10 +20,7 @@ the stage each job dies at.
 Read-only. Scrapes, counts, sends nothing and records nothing.
 """
 import argparse
-import ast
-import re
 import sys
-import textwrap
 import time
 
 import job_server as js
@@ -32,17 +29,18 @@ HERE = __file__.rsplit('\\', 1)[0].rsplit('/', 1)[0]
 
 
 def _load_gates():
-    """_is_mgmt and _BAD_TITLE_KW live inside _run_notify_job, so lift them out
-    of the source rather than retyping them — a copy here would drift."""
-    src = open(js.__file__, encoding='utf-8').read()
-    ns = {}
-    exec(textwrap.dedent(
-        re.search(r'( {4}def _is_mgmt\(title\):.*?\n\n)', src, re.S).group(1)), ns)
-    bad = ast.literal_eval(textwrap.dedent(
-        re.search(r'_BAD_TITLE_KW = (\[.*?\n    \])', src, re.S).group(1)))
-    nontech = ast.literal_eval(textwrap.dedent(
-        re.search(r'_NONTECH = (\[.*?\n    \])', src, re.S).group(1)))
-    return ns['_is_mgmt'], bad, nontech
+    """השערים מיובאים, לא מחולצים.
+
+    עד 9.11.2026 הם ישבו בתוך _run_notify_job, ולכן הפונקציה הזאת חילצה
+    אותם מהקוד לפי ביטוי רגולרי שהסתמך על ארבעה רווחים של הזחה. באותו יום
+    הם הועברו לרמת המודול כדי שאפשר יהיה לבדוק אותם בלי להריץ סריקה, הביטוי
+    הפסיק להתאים, והחילוץ נפל ב-AttributeError על None. זה הפיל גם את
+    scan_sources, שמייבא את הקובץ הזה, ולכן את כפתור הסריקה כולו.
+
+    עכשיו פשוט מייבאים. אם יום אחד הם יחזרו להיות מקומיים, זה ייפול כאן
+    בייבוא ולא ישתיק את עצמו.
+    """
+    return js._is_mgmt, js._BAD_TITLE_KW, js._NONTECH
 
 
 _IS_MGMT, _BAD, _NONTECH = _load_gates()
