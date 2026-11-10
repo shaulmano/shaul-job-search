@@ -31,15 +31,22 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 1/11/2026: נשאר כאן מקור אחד בלבד.
+# 10.11.2026: הרשימה ריקה. אין כרגע מקור שנסרק מכאן.
 #
-# malamteam חזר לענן, שכבר לא חוסם אותו. sqlink ו-one1 חזרו גם הם: התברר
-# ששניהם לא היו חסומים אלא שבורים, ואחרי שתוקנו הם עונים לראנר כרגיל.
+# malamteam חזר לענן ב-1.11, שכבר לא חוסם אותו. sqlink ו-one1 חזרו גם הם:
+# התברר ששניהם לא היו חסומים אלא שבורים, ואחרי שתוקנו הם עונים לראנר כרגיל.
 #
-# secretjobs הוא היחיד שבאמת חסום: 403 בכל ניסיון מהענן. הסריקה מכאן היא גם
-# הדבר היחיד שמרענן את העותק השמור של רשימת המשרות שלו, ובלי ריענון הוא
-# מזקין עד שאף רשומה בו לא עוברת את סינון הגיל.
-BLOCKED_SOURCES = ['secretjobs']
+# secretjobs היה האחרון כאן, והוא ירד לבקשת שאול: "כל המשרות אלו כפילויות".
+# המדידה תמכה בו. מתוך 331 המשרות שהוא הכניס, ל-158 הייתה כותרת זהה בדיוק
+# למשרה ממקור אחר, והשוואת כותרות מדויקת היא בדיקה שמרנית שלא תופסת שינויי
+# ניסוח. הוא לא תרם ייחודיות, רק עוד שורות לעבור עליהן.
+#
+# הסורק עצמו נשאר רשום ב-SCRAPERS, ולכן סריקה ידנית יכולה להגיע אליו, ויום
+# שבו נרצה אותו בחזרה הוא שורה אחת כאן. אל תחזיר אותו בלי שיבקש.
+#
+# הקובץ נשאר כי הוא התשתית לכל מקור שייחסם בעתיד. כל עוד הרשימה ריקה,
+# המשימה המתוזמנת שמריצה אותו במחשב של שאול לא עושה כלום.
+BLOCKED_SOURCES = []
 PROJECT_REF = os.environ.get('SUPABASE_PROJECT_REF', 'egxsgxoecucmwaktprez')
 BATCH = 100
 
@@ -107,6 +114,13 @@ def main():
     sources = args or BLOCKED_SOURCES
 
     log('Local scan: the boards Cloudflare blocks in the cloud')
+    if not sources:
+        # ‏10.11.2026: אחרי שסיקרטג'ובס ירד, אין מקור שנסרק מכאן. יציאה
+        # מסודרת ולא ריצה ריקה שנראית כאילו היא עשתה משהו.
+        log('No blocked sources are configured, so there is nothing to scan.')
+        log('Everything runs in the cloud now. This scheduled task can be removed.')
+        log('To scan one board from here anyway: python local_blocked_scan.py <source>')
+        return
     log(f'Sources: {", ".join(sources)}')
 
     import job_server as js
