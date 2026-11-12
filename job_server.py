@@ -2337,6 +2337,12 @@ SCHEDULED_ROLES = [
     # חלק מהן. אם זה יחמיר, המסקנה היא סבב מתחלף ולא עוד תפקידים.
     'Service Delivery Manager',
     'Technical Delivery Manager',
+    # 12.11.2026: שאול שלח צילום של חיפוש שהוא עושה בעצמו בלינקדאין,
+    # "Release and delivery manager", וביקש להוסיף אותו. זה לא תפקיד אלא
+    # ביטוי חיפוש: לינקדאין מתייחס אליו כמילות מפתח ומחזיר גם Project
+    # Manager וגם Software Release Manager, כלומר רחב יותר מכל אחד
+    # מהשניים לבד.
+    'Release and delivery manager',
     # 'Implementation Manager' נוסף והוסר באותו יום. הנתונים אמרו את ההפך
     # מהניחוש: שאול סגר ב-X את implementation ב-14 מתוך 16 ואת implementer
     # ב-9 מתוך 9. הוא כבר ענה על השאלה הזאת, רק שאף אחד לא הסתכל.
