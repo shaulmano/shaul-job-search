@@ -52,6 +52,10 @@ _MAX_JOB_AGE_DAYS = 2
 # הדוק: שם החציון היה 49 יום והוא לחץ על משרה שנסגרה חודש קודם.
 _MAX_AGE_BY_SOURCE = {
     'Drushim': 14,
+    # 12.11.2026: חייב ללכת יחד עם _SCAN_WINDOW_BY_SOURCE. משרות לינקדאין
+    # נושאות תאריך פרסום מהכרטיס, ולכן פתיחת חלון השאילתה לשבוע בלי לפתוח
+    # גם את שער הגיל הייתה מביאה אותן ומיד זורקת אותן.
+    'LinkedIn': 7,
 }
 
 PORT = int(os.environ.get('PORT', 8765))
@@ -2363,6 +2367,19 @@ SCHEDULED_ROLES = [
 # so a wider window mostly returns things already seen.
 _SCAN_WINDOW = '36h'
 
+# 12.11.2026: לינקדאין נשאל על שבוע ולא על 36 שעות.
+#
+# שאול שלח צילום של חיפוש שהוא עושה בעצמו שם, ושלוש המשרות בו היו מלפני
+# שבועיים וחודש. הן מעולם לא יכלו להגיע אליו: המערכת שאלה את לינקדאין רק
+# על 36 שעות. למדידה: לביטוי רחב לינקדאין מחזיר 50 שורות כבר ב-36 שעות,
+# כלומר הוא נחסם בתקרת הדפים שלנו ולא בחלון. לתפקידים הצרים, QA Director
+# וחבריו, המצב הפוך: ב-36 שעות אין כמעט כלום והחלון הוא מה שחונק אותם.
+#
+# שאול בחר בשבוע ב-12.11.2026. שאר המקורות נשארים על 36 שעות.
+_SCAN_WINDOW_BY_SOURCE = {
+    'linkedin': 'week',
+}
+
 # Announce the start of a scan in Telegram. Doubles the daily message count to
 # 32, which is why it is a switch: set False and the scan goes back to
 # reporting only its results.
@@ -3114,7 +3131,7 @@ def _run_notify_job(status_cb=None, sources=None, always_notify=False, scope='')
                 stats[source]['errors'].append('scraper not registered')
             return
         try:
-            jobs = scraper(role, _SCAN_WINDOW)
+            jobs = scraper(role, _SCAN_WINDOW_BY_SOURCE.get(source, _SCAN_WINDOW))
             raw_n = len(jobs)
             _NOISY = {'experis', 'dialog', 'sqlink', 'malamteam', 'nisha', 'gotfriends', 'jobmaster'}
             if source in _NOISY:
