@@ -2007,21 +2007,27 @@ GREENHOUSE_BOARDS = [
     'appsflyer', 'via', 'fireblocks', 'transmitsecurity', 'forter', 'melio',
     'axonius', 'torq', 'yotpo', 'cymulate', 'safebreach', 'augury',
     'orcasecurity', 'descope', 'riskified', 'bigid', 'lightricks', 'lightrun',
-    'cybereason', 'bringg',
-    # 14.11.2026. שאול ביקש משרות ניהול פרויקטים בחברות הייטק, ומדידה הראתה
-    # שהחור אינו בקוד אלא ברשימה: עשרים ושש חברות בלבד. אלה מועמדות שנוספו
-    # באותו ערב ונמדדו ב-`run_notify.py atsreport`, שמדפיס לכל טוקן כמה
-    # משרות יש בלוח וכמה מהן בישראל.
-    #
-    # **טוקן שמחזיר אפס משרות בסך הכל אינו לוח ריק אלא טוקן שגוי**, והוא
-    # נמחק מכאן. טוקן שמחזיר משרות אבל אפס בישראל הוא חברה שהלוח שלה אמיתי
-    # ואין לה פה משרות כרגע, והוא נשאר. אל תמחק לפי אפס בישראל.
-    'wiz', 'snyk', 'gong', 'walkme', 'claroty', 'hibob', 'rapyd', 'verbit',
-    'placerai', 'nextinsurance', 'tipalti', 'kaltura', 'cellebrite',
-    'playtika', 'aquasecurity', 'checkmarx', 'island', 'cyberark', 'pentera',
-    'coralogix', 'logzio', 'vastdata', 'runai', 'datarails', 'papayaglobal',
-    'atbay', 'silverfort', 'cyera', 'upwind', 'guardio',
+    'bringg',
+    # 14.11.2026, נוספו אחרי מדידה: Island ו-Datarails מחזירים משרות בישראל,
+    # At-Bay מחזיר לוח אמיתי שריק כרגע.
+    'island', 'datarails', 'atbay',
 ]
+
+# **`cybereason` הוסר ב-14.11.2026 כי הטוקן מת.** הוא ישב ברשימה מהיום
+# הראשון והחזיר HTTPError, והסורק בלע את החריגה והמשיך, ולכן זה נראה בדיוק
+# כמו חברה בלי משרות. אף אחד לא היה מגלה את זה לעולם.
+#
+# **וכך גם שלושים הטוקנים שניסיתי להוסיף באותו ערב.** כתבתי אותם מהראש,
+# ושניים בלבד היו אמיתיים: island ו-datarails. wiz, snyk, gong, walkme,
+# claroty, hibob, rapyd, verbit, placerai, nextinsurance, tipalti, kaltura,
+# cellebrite, playtika, aquasecurity, checkmarx, cyberark, pentera,
+# coralogix, logzio, vastdata, runai, papayaglobal, silverfort, cyera,
+# upwind ו-guardio כולם החזירו HTTPError.
+#
+# **הלקח: טוקן של לוח אינו שם החברה, ואי אפשר לנחש אותו.** החברות האלה
+# קיימות ומגייסות, הן פשוט לא על Greenhouse תחת השם הזה. הדרך היחידה
+# להוסיף חברה היא למצוא את כתובת עמוד הקריירה האמיתי שלה ולקרוא ממנו את
+# הטוקן. לפני שמוסיפים טוקן חדש, להריץ `run_notify.py atsreport`.
 
 # The board token is not the company's name — the API's own board endpoint is,
 # and it says "Cato Networks" where the token says "catonetworks". Fetched once
@@ -2189,12 +2195,14 @@ SMARTRECRUITERS_BOARDS = {'armis': 'Armis'}
 # its own careers page. Lever hosts a slice of the Israeli market that no board
 # here touches.
 #
-# Same discipline as Greenhouse: these are candidates until `atsreport` says
-# otherwise. A token that returns zero postings at all is wrong and gets deleted.
-LEVER_BOARDS = [
-    'idt', 'sisense', 'minutemedia', 'anodot', 'bizzabo', 'trax',
-    'zenity', 'grip', 'noname', 'salt', 'piiano', 'granulate',
-]
+# **נמדד באותו ערב, ואחד עשר מתוך שנים עשר היו טוקנים שגויים.** נשאר IDT
+# בלבד, עם 110 משרות ומהן אחת בישראל.
+#
+# לכן `lever` רשום ב-SCRAPERS ואינו ב-SCHEDULED_SOURCES: משרה אחת אינה
+# מצדיקה סיבוב נוסף לכל תפקיד בכל סריקה, בדיוק מאותו טעם ש-ashby
+# ו-smartrecruiters יושבים שם. הסורק עובד, והיום שתימצא חברה ישראלית
+# אמיתית על Lever זאת הוספה של שורה אחת.
+LEVER_BOARDS = ['idt']
 
 _ATS_ISRAEL = _GH_ISRAEL   # one definition of "is this in Israel"
 
