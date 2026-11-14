@@ -36,11 +36,15 @@ if mode == 'sample':
     scraper = job_server.SCRAPERS.get(src)
     if not scraper:
         raise SystemExit(f'unknown source: {src}. known: {", ".join(sorted(job_server.SCRAPERS))}')
-    rows = scraper(role) or []
-    print(f'[sample] {src} / "{role}" returned {len(rows)} rows')
-    for r in rows[:25]:
-        print(f"  title={r.get('title','')!r}")
-        print(f"     company={r.get('company','')!r}  url={(r.get('url') or '')[:90]}")
+    # 14.11.2026: אותו תיקון כמו ב-gates. הכלי קרא לסורק בברירת המחדל של 20
+    # שעות בזמן שהסריקה שואלת לפי _SCAN_WINDOW_BY_SOURCE, ולכן הוא החזיר אפס
+    # על מקור שמחזיר שמונים שורות בסריקה אמיתית.
+    window = job_server._SCAN_WINDOW_BY_SOURCE.get(src, job_server._SCAN_WINDOW)
+    rows = scraper(role, window) or []
+    print(f'[sample] {src} / "{role}" window={window} returned {len(rows)} rows')
+    for r in rows[:40]:
+        print(f"  {r.get('company','')} | {r.get('title','')} | {r.get('date','')}")
+        print(f"     {r.get('url') or ''}")
 elif mode == 'gates':
     # מריץ את שערי הסינון על מה שמקור מחזיר, בלי מסד, בלי seen_jobs, בלי
     # הודעות, ומדפיס מי פסל מה. נולד ב-9.11.2026: דרושים החזיר חמישים משרות
