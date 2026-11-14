@@ -5,10 +5,17 @@ REM It used to run the full scan, which the cloud already does every 90 minutes:
 REM the same boards, the same roles, a second Telegram message for the same jobs.
 REM Since 11/10/2026 it runs only what the cloud cannot reach.
 REM
-REM SecretJobs answers a GitHub runner with HTTP 403 behind
-REM Cloudflare, so they were taken out of SCHEDULED_SOURCES. From this machine
-REM they answer normally. This is now the only path by which those three reach
-REM the situation room, and the only thing this file does.
+REM 14/11/2026: Malam Team. It brought 474 jobs and then went silent on
+REM 1/11. From a GitHub runner it answers HTTP 403 with "Just a moment...",
+REM and seven browser fingerprints, Chrome 124 through 152, Safari and
+REM Firefox, all got 403 from the same runner that SQLink answers with 200.
+REM So it is the address, not the fingerprint, and no code in the cloud can
+REM fix it. From this machine the board answers normally, and this file is
+REM the only path by which it reaches the situation room.
+REM
+REM These jobs are written to the database but NOT scored here. The next
+REM cloud run scores whatever has no match row yet, so they show up on the
+REM board within the hour, not at once.
 REM
 REM Still read-only as far as git is concerned. The cloud run owns jobs.jsonl
 REM and seen_jobs.json; a local run committing them is what left the working
@@ -23,7 +30,7 @@ cd /d C:\Users\Shaul\Documents\job-search
 echo.
 echo  ====================================================
 echo   Scanning the boards Cloudflare blocks in the cloud
-echo   SecretJobs
+echo   Malam Team
 echo  ====================================================
 echo.
 
