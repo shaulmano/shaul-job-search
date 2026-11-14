@@ -2023,6 +2023,8 @@ GREENHOUSE_BOARDS = [
     # 14.11.2026, נוספו אחרי מדידה: Island ו-Datarails מחזירים משרות בישראל,
     # At-Bay מחזיר לוח אמיתי שריק כרגע.
     'island', 'datarails', 'atbay',
+    # שאול מצא אותו ידנית ב-14.11 ושלח קישור. Technical Project Manager.
+    'altevarcm',
 ]
 
 # **`cybereason` הוסר ב-14.11.2026 כי הטוקן מת.** הוא ישב ברשימה מהיום
@@ -2071,7 +2073,18 @@ _GH_CACHE_TTL = 300
 
 _GH_ISRAEL = ('israel', 'tel aviv', 'tel-aviv', 'herzliya', 'raanana', "ra'anana",
               'haifa', 'jerusalem', 'netanya', 'petah', 'rehovot', 'beer sheva',
-              'yokneam', 'caesarea', 'ramat gan', 'hod hasharon', 'kfar saba')
+              'yokneam', 'caesarea', 'ramat gan', 'hod hasharon', 'kfar saba',
+              # 14.11.2026. שאול שלח משרת Technical Project Manager ב-Alteva RCM
+              # שהמיקום שלה רשום "Remote" בלבד, ושאל למה לא מצאנו אותה. אחת
+              # משתי הסיבות הייתה כאן: **שער המיקום דרש שם של עיר, ולכן כל
+              # משרה מרחוק בכל הלוחות נפלה בשקט.**
+              #
+              # "Remote" לבדו הוא אכן דו משמעי ויכול להיות בכל מקום, ולכן זה
+              # מכניס גם רעש. אבל הלוחות האלה נבחרו אחד אחד כחברות ישראליות,
+              # ובחברה ישראלית "Remote" פירושו מרחוק מכאן. שאול ביקש במפורש
+              # להעדיף נפח על דיוק, וכאן המחיר הוא כמה שורות זרות מול משרות
+              # אמיתיות שנעלמו לגמרי.
+              'remote')
 
 
 def search_greenhouse(role, time_filter='20h'):
