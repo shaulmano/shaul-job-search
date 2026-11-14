@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan the three boards that block the cloud, from Shaul's own machine.
+"""Scan the boards that block the cloud, from Shaul's own machine.
 
 Malam Team, SQLink and One1 answer a GitHub runner with HTTP 403 behind
 Cloudflare - "Just a moment..." for two of them and a WAF block page for the
@@ -31,9 +31,21 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 10.11.2026: הרשימה ריקה. אין כרגע מקור שנסרק מכאן.
+# 14.11.2026: מלם־תים חזר לכאן, בהחלטה מפורשת של שאול: "תחזיר לסריקה
+# מהמחשב".
 #
-# malamteam חזר לענן ב-1.11, שכבר לא חוסם אותו. sqlink ו-one1 חזרו גם הם:
+# מה נמדד: הוא הפסיק להכניס משרות ב-1.11 אחרי 474 משרות, והוא מחזיר
+# לראנר HTTP 403 עם "Just a moment...". נוסו שבע טביעות דפדפן, מכרום 124
+# עד כרום 152, ספארי ופיירפוקס, וכולן קיבלו 403. מאותו ראנר עצמו SQLink
+# עונה 200, ולכן זאת חסימה של כתובות מרכזי נתונים ולא זיהוי דפדפן. אין
+# שורת קוד בענן שתפתור את זה.
+#
+# ההחלטה נוגדת את ההעדפה הכללית שלו שהכל ירוץ בענן, והוא קיבל אותה אחרי
+# שראה את המדידה: מקור אחד, קריאה אחת, לא סוכן.
+#
+# 10.11.2026, ההיסטוריה שלפני כן: הרשימה הייתה ריקה.
+#
+# malamteam חזר לענן ב-1.11 כשלא חסם אותו. sqlink ו-one1 חזרו גם הם:
 # התברר ששניהם לא היו חסומים אלא שבורים, ואחרי שתוקנו הם עונים לראנר כרגיל.
 #
 # secretjobs היה האחרון כאן, והוא ירד לבקשת שאול: "כל המשרות אלו כפילויות".
@@ -46,7 +58,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 #
 # הקובץ נשאר כי הוא התשתית לכל מקור שייחסם בעתיד. כל עוד הרשימה ריקה,
 # המשימה המתוזמנת שמריצה אותו במחשב של שאול לא עושה כלום.
-BLOCKED_SOURCES = []
+BLOCKED_SOURCES = ['malamteam']
 PROJECT_REF = os.environ.get('SUPABASE_PROJECT_REF', 'egxsgxoecucmwaktprez')
 BATCH = 100
 
@@ -114,6 +126,13 @@ def main():
     sources = args or BLOCKED_SOURCES
 
     log('Local scan: the boards Cloudflare blocks in the cloud')
+    # 14.11.2026: this path writes to jobs and does NOT score. A job with no
+    # row in matches is invisible on every screen, with no error - the trap
+    # that hid fifteen jobs on 10/11. It is not scored here on purpose: the
+    # hourly cloud run calls score.py in "missing" mode, which picks up any
+    # job that has no match row yet. So these appear within the hour, not at
+    # once. Do not add a direct write to matches here instead; one scorer.
+    log('Jobs written here are scored by the next cloud run, within the hour.')
     if not sources:
         # ‏10.11.2026: אחרי שסיקרטג'ובס ירד, אין מקור שנסרק מכאן. יציאה
         # מסודרת ולא ריצה ריקה שנראית כאילו היא עשתה משהו.
