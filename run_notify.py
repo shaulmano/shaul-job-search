@@ -54,9 +54,19 @@ elif mode == 'gates':
     if not scraper:
         raise SystemExit(f'unknown source: {src}')
 
+    # 14.11.2026: החלון חייב להיות זה שהסריקה האמיתית משתמשת בו.
+    #
+    # עד כאן הכלי קרא לסורק בלי חלון, כלומר בברירת המחדל של 20 שעות, בזמן
+    # שהסריקה שואלת כל מקור לפי _SCAN_WINDOW_BY_SOURCE. ב-Greenhouse זה
+    # ההבדל בין חודש לבין 20 שעות, ולכן הכלי החזיר "0 distinct rows
+    # scraped" על מקור שמחזיר מאה שורות בסריקה אמיתית, ונראה כאילו הוא ענה.
+    # **כלי אבחון שמריץ תנאים אחרים מהמערכת גרוע מכלי שחסר.**
+    window = job_server._SCAN_WINDOW_BY_SOURCE.get(src, job_server._SCAN_WINDOW)
+    print(f'[gates] {src} asked with window {window}\n')
+
     rows, seen_urls = [], set()
     for role in job_server.SCHEDULED_ROLES:
-        got = scraper(role) or []
+        got = scraper(role, window) or []
         fresh = [r for r in got if r.get('url') and r['url'] not in seen_urls]
         for r in fresh:
             seen_urls.add(r['url'])
