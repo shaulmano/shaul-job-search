@@ -5,17 +5,17 @@ REM It used to run the full scan, which the cloud already does every 90 minutes:
 REM the same boards, the same roles, a second Telegram message for the same jobs.
 REM Since 11/10/2026 it runs only what the cloud cannot reach.
 REM
-REM 14/11/2026: Malam Team. It brought 474 jobs and then went silent on
-REM 1/11. From a GitHub runner it answers HTTP 403 with "Just a moment...",
-REM and seven browser fingerprints, Chrome 124 through 152, Safari and
-REM Firefox, all got 403 from the same runner that SQLink answers with 200.
-REM So it is the address, not the fingerprint, and no code in the cloud can
-REM fix it. From this machine the board answers normally, and this file is
-REM the only path by which it reaches the situation room.
+REM 14/11/2026: the list is empty again. Malam Team was moved here that
+REM morning and moved straight back out: it answered 403 from this machine
+REM too, on a home connection, so the block was never about the address.
+REM The whole domain sits behind a Cloudflare JavaScript challenge now.
 REM
-REM These jobs are written to the database but NOT scored here. The next
-REM cloud run scores whatever has no match row yet, so they show up on the
-REM board within the hour, not at once.
+REM This file still does nothing until a source is added to BLOCKED_SOURCES,
+REM and a run with an empty list exits in one line. Keep the task: it is the
+REM only path ready for the next board that blocks the cloud.
+REM
+REM Jobs written here are NOT scored here. The next cloud run scores whatever
+REM has no match row yet, so they show up on the board within the hour.
 REM
 REM Still read-only as far as git is concerned. The cloud run owns jobs.jsonl
 REM and seen_jobs.json; a local run committing them is what left the working
@@ -30,7 +30,6 @@ cd /d C:\Users\Shaul\Documents\job-search
 echo.
 echo  ====================================================
 echo   Scanning the boards Cloudflare blocks in the cloud
-echo   Malam Team
 echo  ====================================================
 echo.
 
