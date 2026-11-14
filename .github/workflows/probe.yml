@@ -18,6 +18,10 @@ on:
         description: 'instead, run every filter over one source and print who dropped what'
         required: false
         default: ''
+      fingerprint:
+        description: 'instead, try several browser fingerprints against one url and print the status of each'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -51,6 +55,41 @@ jobs:
             cat sample.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # 14.11.2026. מלם־תים הפסיק להביא משרות ב-1.11 ומחזיר מהראנר
+      # HTTP 403 עם "Just a moment...", כלומר Cloudflare. כל הסקרייפרים
+      # מתחזים ל-chrome124, שהוא כרום מאפריל 2024, ו-Cloudflare מהדקת את
+      # הטביעה מול דפדפנים ישנים. הצעד הזה בודק אם טביעה עדכנית עוברת,
+      # לפני שמחזירים מקור למחשב של שאול בניגוד להעדפה שלו.
+      - name: Try browser fingerprints against one url
+        if: inputs.fingerprint != ''
+        env:
+          TARGET: ${{ inputs.fingerprint }}
+        run: |
+          python - <<'EOF'
+          import os
+          from curl_cffi import requests as cf
+          url = os.environ['TARGET']
+          try:
+              from curl_cffi.requests.impersonate import BrowserTypeLiteral
+              print('available:', BrowserTypeLiteral)
+          except Exception:
+              pass
+          for target in ['chrome124', 'chrome131', 'chrome133a', 'chrome136',
+                         'chrome', 'safari18_0', 'firefox135']:
+              try:
+                  r = cf.get(url, impersonate=target, timeout=60)
+                  title = ''
+                  if 'text/html' in r.headers.get('content-type', ''):
+                      body = r.text[:4000]
+                      i = body.lower().find('<title')
+                      if i >= 0:
+                          j = body.find('>', i); k = body.lower().find('</title', j)
+                          title = body[j+1:k].strip()[:50]
+                  print(f'{target:14} HTTP {r.status_code}  {len(r.content):>9} bytes  {title}')
+              except Exception as e:
+                  print(f'{target:14} failed: {str(e)[:90]}')
+          EOF
 
       # מריץ את כל שערי הסינון על מקור אחד ומדפיס מי פסל מה. קריאה בלבד:
       # אין מסד, אין seen_jobs, אין הודעות.
