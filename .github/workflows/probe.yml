@@ -22,6 +22,10 @@ on:
         description: 'instead, try several browser fingerprints against one url and print the status of each'
         required: false
         default: ''
+      browser:
+        description: 'instead, open one url in a real Chromium and print what it gets'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -89,6 +93,36 @@ jobs:
                   print(f'{target:14} HTTP {r.status_code}  {len(r.content):>9} bytes  {title}')
               except Exception as e:
                   print(f'{target:14} failed: {str(e)[:90]}')
+          EOF
+
+      # 14.11.2026. "Just a moment..." הוא דף אתגר JavaScript ולא חסימת
+      # כתובת: אותו 403 חזר גם מהמחשב של שאול, בחיבור ביתי. כלומר השאלה
+      # אינה מאיפה הבקשה יוצאת אלא שהיא לא דפדפן אמיתי. הצעד הזה בודק אם
+      # כרומיום אמיתי עובר את האתגר מהראנר.
+      - name: Open one url in a real browser
+        if: inputs.browser != ''
+        env:
+          TARGET: ${{ inputs.browser }}
+        run: |
+          python - <<'EOF'
+          import os, time
+          from playwright.sync_api import sync_playwright
+          url = os.environ['TARGET']
+          with sync_playwright() as p:
+              b = p.chromium.launch()
+              pg = b.new_page(locale='he-IL')
+              r = pg.goto(url, wait_until='domcontentloaded', timeout=90000)
+              print('first response:', r.status if r else '-')
+              # דף האתגר מחליף את עצמו אחרי שניות ספורות כשהוא עובר.
+              for i in range(6):
+                  time.sleep(5)
+                  html = pg.content()
+                  cards = html.count('s_career')
+                  print(f'  t+{(i+1)*5:>2}s  title={pg.title()[:45]!r}  '
+                        f'{len(html):>8} bytes  s_career={cards}')
+                  if cards:
+                      break
+              b.close()
           EOF
 
       # מריץ את כל שערי הסינון על מקור אחד ומדפיס מי פסל מה. קריאה בלבד:
