@@ -26,6 +26,10 @@ on:
         description: 'instead, open one url in a real Chromium and print what it gets'
         required: false
         default: ''
+      atsreport:
+        description: 'instead, print how many postings each ATS board has and how many are in Israel. any value turns it on'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -45,6 +49,21 @@ jobs:
 
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
+
+      # 14.11.2026. רשימות הטוקנים של Greenhouse, Lever, Ashby ו-SmartRecruiters
+      # נכתבות מהראש, וטוקן שגוי נראה בדיוק כמו לוח ריק: שניהם מחזירים אפס
+      # דרך הסורק. הצעד הזה מפריד ביניהם לפני שמשאירים טוקן ברשימה.
+      - name: ATS board report
+        if: inputs.atsreport != ''
+        run: |
+          set -o pipefail
+          python run_notify.py atsreport 2>&1 | tee ats.txt || true
+          {
+            echo '## ATS boards'
+            echo '```'
+            cat ats.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sample one source
         if: inputs.sample != '' && inputs.gates == ''

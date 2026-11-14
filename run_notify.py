@@ -20,6 +20,12 @@ foreign_filter.install(job_server)   # drop foreign companies before anything is
 
 mode = sys.argv[1].lower() if len(sys.argv) > 1 else 'full'
 
+if mode == 'atsreport':
+    # כמה משרות יש בכל לוח ATS וכמה מהן בישראל. מפריד בין טוקן שגוי לבין לוח
+    # ריק, שתי תקלות שנראות זהות דרך הסורק כי שתיהן מחזירות אפס שורות.
+    job_server.ats_report()
+    raise SystemExit(0)
+
 if mode == 'sample':
     # מדפיס מה מקור מחזיר באמת, לפני כל שער. נולד ב-8.11.2026, כשהתברר
     # ש-GotFriends ו-Nisha מחזירים שורות וכל אחת מהן נופלת בשער התחום, ולכן

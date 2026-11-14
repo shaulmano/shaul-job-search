@@ -2008,6 +2008,19 @@ GREENHOUSE_BOARDS = [
     'axonius', 'torq', 'yotpo', 'cymulate', 'safebreach', 'augury',
     'orcasecurity', 'descope', 'riskified', 'bigid', 'lightricks', 'lightrun',
     'cybereason', 'bringg',
+    # 14.11.2026. שאול ביקש משרות ניהול פרויקטים בחברות הייטק, ומדידה הראתה
+    # שהחור אינו בקוד אלא ברשימה: עשרים ושש חברות בלבד. אלה מועמדות שנוספו
+    # באותו ערב ונמדדו ב-`run_notify.py atsreport`, שמדפיס לכל טוקן כמה
+    # משרות יש בלוח וכמה מהן בישראל.
+    #
+    # **טוקן שמחזיר אפס משרות בסך הכל אינו לוח ריק אלא טוקן שגוי**, והוא
+    # נמחק מכאן. טוקן שמחזיר משרות אבל אפס בישראל הוא חברה שהלוח שלה אמיתי
+    # ואין לה פה משרות כרגע, והוא נשאר. אל תמחק לפי אפס בישראל.
+    'wiz', 'snyk', 'gong', 'walkme', 'claroty', 'hibob', 'rapyd', 'verbit',
+    'placerai', 'nextinsurance', 'tipalti', 'kaltura', 'cellebrite',
+    'playtika', 'aquasecurity', 'checkmarx', 'island', 'cyberark', 'pentera',
+    'coralogix', 'logzio', 'vastdata', 'runai', 'datarails', 'papayaglobal',
+    'atbay', 'silverfort', 'cyera', 'upwind', 'guardio',
 ]
 
 # The board token is not the company's name — the API's own board endpoint is,
@@ -2170,6 +2183,19 @@ def search_greenhouse(role, time_filter='20h'):
 ASHBY_BOARDS = ['moonactive', 'honeybook', 'finout']
 SMARTRECRUITERS_BOARDS = {'armis': 'Armis'}
 
+# Lever. 14.11.2026, added for the same reason as the Greenhouse expansion:
+# Shaul asked for project management roles at hi-tech companies, and the boards
+# the bot reads carry what gets posted to them, not what a company posts only on
+# its own careers page. Lever hosts a slice of the Israeli market that no board
+# here touches.
+#
+# Same discipline as Greenhouse: these are candidates until `atsreport` says
+# otherwise. A token that returns zero postings at all is wrong and gets deleted.
+LEVER_BOARDS = [
+    'idt', 'sisense', 'minutemedia', 'anodot', 'bizzabo', 'trax',
+    'zenity', 'grip', 'noname', 'salt', 'piiano', 'granulate',
+]
+
 _ATS_ISRAEL = _GH_ISRAEL   # one definition of "is this in Israel"
 
 
@@ -2299,8 +2325,147 @@ def search_smartrecruiters(role, time_filter='20h'):
     return jobs
 
 
+def search_lever(role, time_filter='20h'):
+    """Israeli Lever boards. Public JSON, title and description in one call."""
+    import concurrent.futures
+    from datetime import datetime, timezone, timedelta
+
+    deltas = {'20h': timedelta(hours=20), '36h': timedelta(hours=36),
+              '72h': timedelta(hours=72), 'week': timedelta(days=7),
+              'month': timedelta(days=30)}
+    cutoff = datetime.now(timezone.utc) - deltas.get(time_filter, timedelta(hours=20))
+    wanted = _ats_role_words(role)
+
+    def _board(tok):
+        try:
+            rows = _ats_get(f'https://api.lever.co/v0/postings/{tok}?mode=json', 20)
+        except Exception:
+            return []
+        if not isinstance(rows, list):
+            return []
+        out = []
+        for j in rows:
+            cat = j.get('categories') or {}
+            loc = cat.get('location') or ''
+            if not any(c in loc.lower() for c in _ATS_ISRAEL):
+                continue
+            title = (j.get('text') or '').strip()
+            if not title or not any(w in title.lower() for w in wanted):
+                continue
+
+            # createdAt היא חותמת זמן במילישניות, ולא ISO כמו בשאר הלוחות.
+            created = j.get('createdAt')
+            when = ''
+            if isinstance(created, (int, float)):
+                dt = datetime.fromtimestamp(created / 1000, timezone.utc)
+                if dt < cutoff:
+                    continue
+                when = dt.date().isoformat()
+
+            desc = (j.get('descriptionPlain') or '')
+            if not desc:
+                desc = re.sub(r'<[^>]+>', ' ', j.get('description') or '')
+                desc = re.sub(r'\s+', ' ', desc).strip()
+
+            out.append({
+                'title':          title[:120],
+                'company':        tok.replace('-', ' ').title(),
+                'date':           when,
+                'url':            j.get('hostedUrl') or j.get('applyUrl') or '',
+                'source':         'Lever',
+                'location':       loc[:120],
+                'description':    desc[:3000],
+                'recruiter_name': '',
+                'recruiter_url':  '',
+            })
+        return out
+
+    jobs, seen = [], set()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        for res in ex.map(_board, LEVER_BOARDS):
+            for j in res:
+                if j['url'] and j['url'] not in seen:
+                    seen.add(j['url'])
+                    jobs.append(j)
+    print(f'  [Lever] {len(jobs)} jobs for "{role}"')
+    return jobs
+
+
+def ats_report():
+    """כמה משרות יש בכל לוח ATS, וכמה מהן בישראל. בלי סינון תפקיד ובלי גיל.
+
+    14.11.2026. רשימות הטוקנים נכתבות מהראש, וטוקן שגוי נראה בדיוק כמו לוח
+    ריק: שניהם מחזירים אפס שורות דרך הסורק, והסורק בולע את החריגה. זה בדיוק
+    הדפוס שהפיל כאן מקורות שלמים בשקט לאורך 2026.
+
+    הפונקציה הזאת מפרידה ביניהם. היא קוראת לכל לוח פעם אחת ומדפיסה שתי
+    ספירות: כמה משרות יש בו בסך הכל, וכמה מהן בישראל. אפס בסך הכל הוא טוקן
+    שגוי וצריך למחוק אותו. משרות בלי ישראל הוא לוח אמיתי בלי משרות פה.
+
+        python run_notify.py atsreport
+    """
+    import concurrent.futures
+
+    def _israel(rows, loc_of):
+        return sum(1 for r in rows
+                   if any(c in (loc_of(r) or '').lower() for c in _ATS_ISRAEL))
+
+    def _greenhouse(tok):
+        try:
+            rows = _ats_get(f'https://boards-api.greenhouse.io/v1/boards/{tok}/jobs').get('jobs') or []
+        except Exception as e:
+            return tok, -1, 0, type(e).__name__
+        return tok, len(rows), _israel(rows, lambda r: (r.get('location') or {}).get('name')), ''
+
+    def _lever(tok):
+        try:
+            rows = _ats_get(f'https://api.lever.co/v0/postings/{tok}?mode=json')
+        except Exception as e:
+            return tok, -1, 0, type(e).__name__
+        if not isinstance(rows, list):
+            return tok, -1, 0, 'not a list'
+        return tok, len(rows), _israel(rows, lambda r: (r.get('categories') or {}).get('location')), ''
+
+    def _ashby(tok):
+        try:
+            rows = _ats_get(f'https://api.ashbyhq.com/posting-api/job-board/{tok}', 20).get('jobs') or []
+        except Exception as e:
+            return tok, -1, 0, type(e).__name__
+        return tok, len(rows), _israel(rows, lambda r: r.get('location')), ''
+
+    def _sr(tok):
+        try:
+            rows = _ats_get(
+                f'https://api.smartrecruiters.com/v1/companies/{tok}/postings?limit=100'
+            ).get('content') or []
+        except Exception as e:
+            return tok, -1, 0, type(e).__name__
+        return tok, len(rows), _israel(
+            rows, lambda r: '%s %s' % ((r.get('location') or {}).get('city', ''),
+                                       (r.get('location') or {}).get('country', ''))), ''
+
+    plan = [('Greenhouse', _greenhouse, GREENHOUSE_BOARDS),
+            ('Lever', _lever, LEVER_BOARDS),
+            ('Ashby', _ashby, ASHBY_BOARDS),
+            ('SmartRecruiters', _sr, list(SMARTRECRUITERS_BOARDS))]
+
+    for label, fn, tokens in plan:
+        print(f'\n== {label} ==')
+        dead = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            for tok, total, il, err in ex.map(fn, tokens):
+                if total < 0:
+                    dead.append(tok)
+                    print(f'  {tok:<20} DEAD TOKEN   ({err})')
+                else:
+                    print(f'  {tok:<20} {total:>4} postings, {il:>3} in Israel')
+        if dead:
+            print(f'  delete these from {label}: {", ".join(dead)}')
+
+
 SCRAPERS = {
     'linkedin':    search_linkedin,
+    'lever':       search_lever,
     'indeed':      search_indeed,
     'alljobs':     search_alljobs,
     'drushim':     search_drushim,
