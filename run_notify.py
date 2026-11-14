@@ -107,5 +107,22 @@ elif mode == 'linkedin':
 else:
     # Runs hourly. Silence would be ambiguous — a quiet hour and a broken scraper
     # look identical — so this always reports back, even with nothing new.
-    job_server._run_notify_job(
-        sources=job_server.SCHEDULED_SOURCES, always_notify=True)
+    #
+    # 14.11.2026, בבקשת שאול: "אתה צריך לעשות את הסריקה שם פעם ביום לא יותר
+    # מזה, זה יוריד נפח".
+    #
+    # לוחות ה-ATS הם קטלוגים ולא פידים. עשרים ושבעה לוחות כפול ארבעה עשר
+    # תפקידים, בשביל רשימה שזזה פעם בכמה ימים, בסריקה שכבר מוציאה חמש עשרה
+    # מעשרים וחמש הדקות שלה. ומודעה שם יושבת פתוחה שבועות, ולכן עיכוב של עד
+    # יממה אינו עולה כלום.
+    #
+    # הגבלת שעה ולא תדירות נפרדת: הסריקה מופעלת מבחוץ כל שעה, ואין לה מקום
+    # לשמור מתי רצה לאחרונה.
+    from datetime import datetime, timedelta, timezone
+    hour = datetime.now(timezone(timedelta(hours=2))).hour
+    srcs = [s for s in job_server.SCHEDULED_SOURCES
+            if s not in job_server.DAILY_SOURCES or hour == job_server.DAILY_HOUR]
+    if hour == job_server.DAILY_HOUR:
+        print(f'[notify] daily pass: {", ".join(job_server.DAILY_SOURCES)} included')
+
+    job_server._run_notify_job(sources=srcs, always_notify=True)
