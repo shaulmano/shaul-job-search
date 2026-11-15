@@ -690,6 +690,117 @@ def search_experis(role, time_filter='20h'):
     return jobs[:50]
 
 
+# ── Jobify ────────────────────────────────────────────────────────────────────
+#
+# ‏15.11.2026. שאול: "אני רוצה שתוסיף את המקור הזה לחיפושים", ואחריו
+# "תראה אם אתה מצליח למשוך משם כי זה אתר שמציג את שם החברה וישירות אפשר
+# להגיש".
+#
+# **Jobify הוא מצרף ולא לוח.** כל משרה נושאת בכתובת סיומת שאומרת מאיפה
+# היא הגיעה, ובעמוד אחד של תפקיד נמדדו שישה מקורות שונים. שלושה מהם
+# כבר אצלנו, ושלושה לא:
+#
+#     -in   לינקדאין      כבר נסרק
+#     -dr   דרושים        כבר נסרק
+#     -aj   אולג'ובס      ירד מהסריקה ב-15.11
+#     -id   **אינדיד**    חסום לנו לגמרי מאחורי Cloudflare
+#     -jk   לוח נוסף      לא נסרק
+#     -emp  מעסיק ישירות  לא נסרק
+#
+# זה מה שמבדיל אותו מסקרטג'ובס, שירד ב-10.11 כי 158 מתוך 331 משרותיו היו
+# כותרת זהה בדיוק למשרה ממקור אחר. כאן יש פלח שאין לנו שום דרך אחרת
+# להגיע אליו. **אם המדידה תראה אחרת, הוא יורד באותה דרך.**
+#
+# נמדד מהראנר לפני שנכתבה שורה: HTTP 200 בכל שבע טביעות הדפדפן, HTML
+# מוכן בצד השרת ללא JavaScript, וסייטמאפ עם 285 עמודי קטגוריה בתבנית
+# `/jobs/<תפקיד>/in/<עיר>`. אין צורך לזחול.
+_JOBIFY_BASE = 'https://jobify360.co.il'
+
+# הסיומת בכתובת היא המקור האמיתי, ו**שמירת "Jobify" בשדה המקור הייתה
+# משקרת למסך המקורות**, שמודד איזה לוח מרוויח את זמן הריצה שלו. אותו
+# טעם בדיוק שבגללו "ידני" הוא דגל ולא מקור.
+_JOBIFY_SOURCES = {
+    'in': 'LinkedIn', 'dr': 'Drushim', 'aj': 'AllJobs',
+    'id': 'Indeed', 'jk': 'JobKarov', 'emp': 'Jobify',
+    'vip': 'AllJobs',
+}
+
+# התפקידים כפי שג'וביפיי קורא להם בכתובת. **רק מה שנמדד נכנס לכאן.**
+# ניחוש של slug מחזיר 404 שנראה בדיוק כמו תפקיד בלי משרות, וזאת בדיוק
+# הטעות שעלתה כאן 28 טוקנים של Greenhouse.
+_JOBIFY_ROLE_SLUGS = {
+    'project manager': 'project-manager',
+    'program manager': 'program-manager',
+    'technical program manager': 'program-manager',
+    'release manager': 'project-manager',
+    'delivery manager': 'project-manager',
+    'qa manager': 'qa-manager',
+    'qa director': 'qa-manager',
+    'head of qa': 'qa-manager',
+    'qa team leader': 'qa-manager',
+}
+
+
+def _jobify_source(url):
+    """LinkedIn / Indeed / Drushim ..., לפי הסיומת, או None אם אין."""
+    m = re.search(r'/jobs/[^/]*?-([a-z]+)(?:[/?#]|$)', url or '')
+    return _JOBIFY_SOURCES.get((m.group(1) if m else '').lower())
+
+
+def search_jobify(role, time_filter='20h'):
+    slug = _JOBIFY_ROLE_SLUGS.get(role.lower())
+    if not slug:
+        return []
+
+    jobs, seen = [], set()
+    # שני עמודים. העמוד הראשון מחזיק עשרים משרות, והלוח מסודר מהחדש לישן.
+    for page in (1, 2):
+        url = f'{_JOBIFY_BASE}/jobs/{slug}' + ('' if page == 1 else f'?page={page}')
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=25)
+            r.raise_for_status()
+        except Exception as e:
+            print(f'  [Jobify] {slug} page {page}: {e}')
+            break
+        soup = BeautifulSoup(r.text, 'html.parser')
+        items = soup.select('li.job-item')
+        if not items:
+            # **מקור שסורק שורות ואף אחת לא עוברת הוא סקרייפר שבור, לא
+            # שוק שקט.** אם הסימון ישתנה, זאת השורה שתגיד את זה.
+            print(f'  [Jobify] {slug} page {page}: no li.job-item in '
+                  f'{len(r.content)} bytes')
+            break
+        for li in items:
+            a = li.find('a', href=re.compile(r'/jobs/'))
+            if not a:
+                continue
+            href = (a.get('href') or '').strip()
+            src = _jobify_source(href)
+            if not src or href in seen:
+                continue
+            h4 = li.find('h4')
+            title = h4.get_text(' ', strip=True) if h4 else ''
+            if len(title) < 4:
+                continue
+            nm = li.select_one('p.nm')
+            company = nm.get_text(' ', strip=True) if nm else ''
+            jit = li.select_one('li.jit')
+            location = jit.get_text(' ', strip=True) if jit else 'Israel'
+            seen.add(href)
+            jobs.append({
+                'title': title[:120],
+                'company': company[:120],
+                'date': '',
+                'url': href,
+                # המקור האמיתי, ולא "Jobify".
+                'source': src,
+                'location': location[:120] or 'Israel',
+            })
+        if len(items) < 20:
+            break
+    return jobs[:50]
+
+
 # ── Dialog ────────────────────────────────────────────────────────────────────
 _DIALOG_CACHE = {}   # {url: (ts, jobs)}
 
@@ -2512,6 +2623,7 @@ SCRAPERS = {
     'sela':        search_sela,
     'one1':        search_one1,
     'comeet':      search_comeet,
+    'jobify':      search_jobify,
     'googlejobs':  search_google_jobs,
     'jobmaster':   search_jobmaster,
     'secretjobs':  search_secretjobs,
