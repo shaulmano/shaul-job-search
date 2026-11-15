@@ -130,6 +130,19 @@ jobs:
           print(f'href links: {len(hrefs)}, of them /jobs/: {len(jobs)}')
           for u in jobs[:12]:
               print('  ' + u)
+          # 15.11.2026: מודעה סגורה. שאול שלח שתי משרות לינקדאין שכבר
+          # נסגרו, והשאלה אם המצב הזה בכלל נראה בעמוד האורח. בלי לראות
+          # את הסימון אי אפשר לכתוב בדיקה, ועד היום נכתב כאן שאי אפשר.
+          t = re.search(r'<title[^>]*>(.*?)</title>', body, re.S | re.I)
+          print('title: %s' % (t.group(1).strip()[:160] if t else '(none)'))
+          for marker in ['no longer accepting', 'No longer accepting applications',
+                         'no longer available', 'posting has expired', 'closed',
+                         'לא מקבל', 'אינה זמינה', 'Apply on company website',
+                         'Easy Apply', 'applies', 'applicants']:
+              i = body.lower().find(marker.lower())
+              if i >= 0:
+                  print('  FOUND %-34r at %d: %s'
+                        % (marker, i, ' '.join(body[max(0, i-90):i+90].split())[:170]))
           print('--- first 600 chars ---')
           print(body[:600])
           # חלון סביב כרטיס המשרה הראשון. בלי לראות את הסימון עצמו אי
