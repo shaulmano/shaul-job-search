@@ -747,7 +747,11 @@ _JOBIFY_ROLE_SLUGS = {
     'project manager': 'project-manager',
     'program manager': 'program-manager',
     'technical program manager': 'program-manager',
-    'release manager': 'project-manager',
+    # 15.11.2026: נמדד ב-probe peek, ‎`/jobs/release-manager` מחזיר 200 עם 21
+    # קישורי משרה, ובהם ‎-jk, ‎-id ו-‎-emp. קודם זה הופנה ל-`project-manager`,
+    # כלומר הקטגוריה הזאת לא נסרקה אף פעם. **אל תנחש slug**: 404 בג'וביפיי
+    # נראה בדיוק כמו קטגוריה ריקה.
+    'release manager': 'release-manager',
     'delivery manager': 'project-manager',
     'qa manager': 'qa-manager',
     'qa director': 'qa-manager',
