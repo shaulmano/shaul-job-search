@@ -31,7 +31,7 @@ on:
         required: false
         default: ''
       peek:
-        description: 'instead, fetch one url and print its status, size, head, and how many <loc> or job links it holds'
+        description: 'instead, fetch a url and print its status, size, head, and how many <loc> or job links it holds. כמה כתובות מופרדות בפסיק או ברווח מודפסות בשורה אחת כל אחת'
         required: false
         default: ''
 
@@ -100,7 +100,23 @@ jobs:
           python - <<'EOF'
           import os, re
           from curl_cffi import requests as cf
-          url = os.environ['TARGET']
+          urls = [u for u in re.split(r'[,\s]+', os.environ['TARGET']) if u]
+          # כמה כתובות: שורה אחת לכל אחת. 15.11.2026, לבדיקת קטגוריות
+          # בג'וביפיי: slug מומצא מחזיר 404 עם קישור משרה אחד (הוא עצמו),
+          # וקטגוריה אמיתית מחזירה 200 עם עשרים ומשהו. זה המבחן שמבדיל
+          # בין קטגוריה ריקה לבין נתיב שלא קיים.
+          if len(urls) > 1:
+              for u in urls:
+                  try:
+                      rr = cf.get(u, impersonate='chrome136', timeout=60)
+                      hr = re.findall(r'href="([^"]+)"', rr.text)
+                      jb = [h for h in hr if '/jobs/' in h]
+                      print(f'{rr.status_code}  {len(rr.content):>7} bytes  '
+                            f'jobs={len(jb):>3}  {u}')
+                  except Exception as e:
+                      print(f'ERR  {type(e).__name__}: {e}  {u}')
+              raise SystemExit(0)
+          url = urls[0]
           r = cf.get(url, impersonate='chrome136', timeout=60)
           body = r.text
           print(f'HTTP {r.status_code}  {len(r.content)} bytes  '
