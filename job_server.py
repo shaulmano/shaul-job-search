@@ -796,7 +796,9 @@ def search_jobify(role, time_filter='20h'):
                 'source': src,
                 'location': location[:120] or 'Israel',
             })
-        if len(items) < 20:
+        # עשר משרות בעמוד, לא עשרים. נמדד בריצה החיה הראשונה: עם סף של
+        # עשרים העמוד השני לא נקרא אף פעם.
+        if len(items) < 5:
             break
     return jobs[:50]
 
