@@ -752,7 +752,21 @@ _JOBIFY_ROLE_SLUGS = {
     # כלומר הקטגוריה הזאת לא נסרקה אף פעם. **אל תנחש slug**: 404 בג'וביפיי
     # נראה בדיוק כמו קטגוריה ריקה.
     'release manager': 'release-manager',
-    'delivery manager': 'project-manager',
+    'delivery manager': 'delivery-manager',
+    # 15.11.2026: ששת התפקידים שלא היו כאן לא נסרקו בג'וביפיי בכלל, כי
+    # `search_jobify` מדלג על תפקיד שאין לו slug. כל הארבעה נמדדו ומחזירים
+    # 200, מול slug מומצא שמחזיר 404 עם קישור משרה אחד. **אין כאן ניחוש.**
+    'professional services manager': 'professional-services-manager',
+    'service delivery manager': 'service-delivery-manager',
+    'technical delivery manager': 'technical-delivery-manager',
+    'ai project manager': 'ai-project-manager',
+    # שניים נשארו בחוץ בכוונה:
+    # 'release and delivery manager' הוא ביטוי חיפוש ולא תפקיד (12.11), ושתי
+    # הקטגוריות שהוא מכסה, release-manager ו-delivery-manager, כבר כאן. מיפוי
+    # שלו היה מביא עמוד שלישי של אותן משרות.
+    # 'ai quality engineer' מכוון לקטגוריה qa-engineer, שהיא תפקידי IC,
+    # ו-`_is_mgmt` דורש מילת ניהול בכותרת. כלומר העמוד היה נמשך וכלום לא
+    # היה עובר. **צריך מדידה לפני שמוסיפים אותו, לא הנחה.**
     'qa manager': 'qa-manager',
     'qa director': 'qa-manager',
     'head of qa': 'qa-manager',
