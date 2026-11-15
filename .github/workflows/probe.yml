@@ -120,7 +120,7 @@ jobs:
           # אפשר לכתוב פרסר, ורק שמות הקישורים אינם מספיקים.
           m = re.search(r'href="[^"]*/jobs/[0-9A-Za-z_.]+-(?:in|id|dr|aj|jk|vip|emp)"', body)
           if m:
-              a, b = max(0, m.start() - 1400), m.end() + 1400
+              a, b = max(0, m.start() - 1400), m.end() + 3200
               print('--- around the first job card ---')
               print(body[a:b])
           EOF
