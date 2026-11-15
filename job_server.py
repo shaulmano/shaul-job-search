@@ -2878,7 +2878,7 @@ _RELEVANT_TITLE_RE = re.compile(
 # `alljobs` נשאר ב-`SCRAPERS` וסריקה ידנית מגיעה אליו, בדיוק כמו
 # secretjobs. **אל תחזיר אותו לכאן בלי שיבקש**, גם לא כשנפח המשרות יורד.
 SCHEDULED_SOURCES = [
-    'linkedin', 'drushim', 'malamteam',
+    'linkedin', 'drushim', 'malamteam', 'jobify',
     'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
     'greenhouse', 'sqlink', 'one1',
 ]
@@ -2894,7 +2894,11 @@ SCHEDULED_SOURCES = [
 # מוציאה חמש עשרה מעשרים וחמש הדקות שלה.
 #
 # שעה 7 ולא חצות: הסריקה צריכה לרוץ לפני שהוא מתחיל את היום.
-DAILY_SOURCES = {'greenhouse'}
+# ‏15.11.2026: jobify מצטרף לכאן ולא לסריקה השעתית. הוא מצרף, כלומר
+# קטלוג של פידים אחרים ולא פיד בעצמו, ומה שנשאר ממנו אחרי הסינון הוא
+# אינדיד וג'וב קרוב, שאינם מתעדכנים בקצב של לינקדאין. שבעה תפקידים כפול
+# שני עמודים בכל ריצה אינם מצדיקים שעה.
+DAILY_SOURCES = {'greenhouse', 'jobify'}
 DAILY_HOUR = 7
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
