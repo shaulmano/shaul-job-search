@@ -30,6 +30,10 @@ on:
         description: 'instead, print how many postings each ATS board has and how many are in Israel. any value turns it on'
         required: false
         default: ''
+      peek:
+        description: 'instead, fetch one url and print its status, size, head, and how many <loc> or job links it holds'
+        required: false
+        default: ''
 
 jobs:
   probe:
@@ -84,6 +88,36 @@ jobs:
       # מתחזים ל-chrome124, שהוא כרום מאפריל 2024, ו-Cloudflare מהדקת את
       # הטביעה מול דפדפנים ישנים. הצעד הזה בודק אם טביעה עדכנית עוברת,
       # לפני שמחזירים מקור למחשב של שאול בניגוד להעדפה שלו.
+      # 15.11.2026. פעמיים באותו יום הייתי צריך לדעת מה כתובת מחזירה בפועל
+      # מהראנר, ולא רק אם היא עונה. טביעות הדפדפן אומרות 200 או 403, ולא
+      # מה יש בפנים, ולכן לא היה אפשר לדעת אם סייטמאפ ניתן לפריסה בלי
+      # לנחש. הצעד הזה מדפיס את הראש ואת הספירות.
+      - name: Peek at one url
+        if: inputs.peek != ''
+        env:
+          TARGET: ${{ inputs.peek }}
+        run: |
+          python - <<'EOF'
+          import os, re
+          from curl_cffi import requests as cf
+          url = os.environ['TARGET']
+          r = cf.get(url, impersonate='chrome136', timeout=60)
+          body = r.text
+          print(f'HTTP {r.status_code}  {len(r.content)} bytes  '
+                f'{r.headers.get("content-type", "")}')
+          locs = re.findall(r'<loc>\s*([^<\s]+)\s*</loc>', body)
+          print(f'<loc> entries: {len(locs)}')
+          for u in locs[:12]:
+              print('  ' + u)
+          hrefs = re.findall(r'href="([^"]+)"', body)
+          jobs = [h for h in hrefs if '/jobs/' in h]
+          print(f'href links: {len(hrefs)}, of them /jobs/: {len(jobs)}')
+          for u in jobs[:12]:
+              print('  ' + u)
+          print('--- first 600 chars ---')
+          print(body[:600])
+          EOF
+
       - name: Try browser fingerprints against one url
         if: inputs.fingerprint != ''
         env:
