@@ -2373,7 +2373,7 @@ SMARTRECRUITERS_BOARDS = {'armis': 'Armis'}
 # מצדיקה סיבוב נוסף לכל תפקיד בכל סריקה, בדיוק מאותו טעם ש-ashby
 # ו-smartrecruiters יושבים שם. הסורק עובד, והיום שתימצא חברה ישראלית
 # אמיתית על Lever זאת הוספה של שורה אחת.
-LEVER_BOARDS = ['idt', 'CYE', 'cye', 'oktopost', 'aleph', 'rapyd', 'payoneer', 'kaltura', 'similarweb', 'lusha', 'bringg', 'hibob', 'melio', 'cato', 'cato-networks', 'perion', 'taboola', 'outbrain', 'playtika', 'jfrog', 'snyk', 'sisense', 'logz', 'aidoc', 'trigo', 'runai', 'gong', 'lightricks', 'claroty', 'cybereason', 'checkmarx', 'orcasecurity', 'silverfort', 'cyberark', 'verbit', 'papayaglobal', 'fundbox', 'riskified', 'forter', 'bizzabo', 'walkme', 'minutemedia', 'simplybusiness', 'nice', 'coralogix']
+LEVER_BOARDS = ['CYE', 'walkme', 'idt', 'oktopost', 'aleph', 'logz']
 
 _ATS_ISRAEL = _GH_ISRAEL   # one definition of "is this in Israel"
 
