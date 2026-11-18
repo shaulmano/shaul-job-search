@@ -68,6 +68,11 @@ _MAX_AGE_BY_SOURCE = {
     # נושאות תאריך פרסום מהכרטיס, ולכן פתיחת חלון השאילתה לשבוע בלי לפתוח
     # גם את שער הגיל הייתה מביאה אותן ומיד זורקת אותן.
     'LinkedIn': 7,
+    # 18.11.2026: Lever הוא קטלוג בדיוק כמו Greenhouse, ו-`createdAt` שלו
+    # הוא תאריך הפרסום. חלון של 36 שעות החזיר **אפס** על כל ששת הלוחות
+    # בזמן שהם מחזיקים 24 משרות ישראליות פתוחות. חייב ללכת יחד עם
+    # _SCAN_WINDOW_BY_SOURCE['lever'].
+    'Lever': 30,
 }
 
 PORT = int(os.environ.get('PORT', 8765))
@@ -2369,11 +2374,45 @@ SMARTRECRUITERS_BOARDS = {'armis': 'Armis'}
 # **נמדד באותו ערב, ואחד עשר מתוך שנים עשר היו טוקנים שגויים.** נשאר IDT
 # בלבד, עם 110 משרות ומהן אחת בישראל.
 #
-# לכן `lever` רשום ב-SCRAPERS ואינו ב-SCHEDULED_SOURCES: משרה אחת אינה
+# לכן `lever` נרשם ב-SCRAPERS ולא ב-SCHEDULED_SOURCES: משרה אחת אינה
 # מצדיקה סיבוב נוסף לכל תפקיד בכל סריקה, בדיוק מאותו טעם ש-ashby
-# ו-smartrecruiters יושבים שם. הסורק עובד, והיום שתימצא חברה ישראלית
-# אמיתית על Lever זאת הוספה של שורה אחת.
+# ו-smartrecruiters יושבים שם.
+#
+# **18.11.2026, וזה בדיוק היום שהובטח שם.** שאול שאל "אנחנו מחפשים במקור
+# שנקרא lever?" ושלח מודעה של CYE:
+# `jobs.lever.co/CYE/52b08507-...`, Cybersecurity Project Coordinator
+# בהרצליה. היא לא יכלה להגיע אליו: CYE לא הייתה ברשימה, ו-lever לא נסרק.
+#
+# נמדדו 45 מועמדים ב-`atsreport`, ושישה חיים:
+#
+#     CYE         7 משרות,  7 בישראל
+#     walkme     27 משרות,  9 בישראל
+#     idt       109 משרות,  2 בישראל
+#     oktopost   13 משרות,  2 בישראל
+#     aleph     175 משרות,  2 בישראל
+#     logz        3 משרות,  2 בישראל
+#
+# **24 משרות בישראל מול אחת**, ולכן זאת כבר לא שורה אחת שאין לה כיסוי.
+# שלושים ותשעה מהמועמדים היו טוקנים שגויים: רוב השוק הישראלי יושב על
+# Greenhouse ועל Comeet, לא על Lever.
+#
+# **ורישיות הטוקן קובעת.** `CYE` עונה ו-`cye` מחזיר HTTPError. זה לא
+# נכון ב-Greenhouse, ולכן טוקן נלקח מהכתובת כפי שהיא ולא בהמרה לאותיות
+# קטנות.
 LEVER_BOARDS = ['CYE', 'walkme', 'idt', 'oktopost', 'aleph', 'logz']
+
+# שם החברה להצגה. **זה לא קוסמטיקה**: `companyKey` בחדר המצב מצליב משרה
+# עם אנשי הקשר לפי השם הזה, ולכן `tok.title()` שמייצר "Logz" במקום
+# "Logz.io" מנתק את מסלול "דרך מישהו שאתה מכיר" בשקט. אותו דפוס כמו
+# GREENHOUSE_NAMES.
+LEVER_NAMES = {
+    'CYE': 'CYE',
+    'walkme': 'WalkMe',
+    'idt': 'IDT',
+    'oktopost': 'Oktopost',
+    'aleph': 'Aleph',
+    'logz': 'Logz.io',
+}
 
 _ATS_ISRAEL = _GH_ISRAEL   # one definition of "is this in Israel"
 
@@ -2548,7 +2587,7 @@ def search_lever(role, time_filter='20h'):
 
             out.append({
                 'title':          title[:120],
-                'company':        tok.replace('-', ' ').title(),
+                'company':        LEVER_NAMES.get(tok, tok.replace('-', ' ').title()),
                 'date':           when,
                 'url':            j.get('hostedUrl') or j.get('applyUrl') or '',
                 'source':         'Lever',
@@ -2728,6 +2767,9 @@ _SCAN_WINDOW_BY_SOURCE = {
     # את שער הגיל הייתה מביאה אותן ומיד זורקת אותן, בלי שום סימן שמשהו לא
     # בסדר. זה בדיוק מה שקרה בלינקדאין ב-12.11.
     'greenhouse': 'month',
+    # 18.11.2026: אותו דבר בדיוק ב-Lever. חייב ללכת יחד עם
+    # _MAX_AGE_BY_SOURCE['Lever'], אחרת השאילתה מביאה ושער הגיל זורק.
+    'lever': 'month',
 }
 
 # Announce the start of a scan in Telegram. Doubles the daily message count to
@@ -2899,6 +2941,10 @@ SCHEDULED_SOURCES = [
     'linkedin', 'drushim', 'malamteam', 'jobify',
     'comeet', 'gotfriends', 'experis', 'dialog', 'nisha',
     'greenhouse', 'sqlink', 'one1',
+    # 18.11.2026: נוסף אחרי שנמדדו 24 משרות ישראליות בששת הלוחות. הוא
+    # ב-DAILY_SOURCES ולא בסריקה השעתית, מאותו טעם כמו Greenhouse: קטלוג
+    # שזז פעם בכמה ימים אינו צריך סיבוב בכל שעה.
+    'lever',
 ]
 
 # מקורות שנסרקים פעם ביום ולא בכל שעה.
@@ -2916,7 +2962,7 @@ SCHEDULED_SOURCES = [
 # קטלוג של פידים אחרים ולא פיד בעצמו, ומה שנשאר ממנו אחרי הסינון הוא
 # אינדיד וג'וב קרוב, שאינם מתעדכנים בקצב של לינקדאין. שבעה תפקידים כפול
 # שני עמודים בכל ריצה אינם מצדיקים שעה.
-DAILY_SOURCES = {'greenhouse', 'jobify'}
+DAILY_SOURCES = {'greenhouse', 'jobify', 'lever'}
 DAILY_HOUR = 7
 
 # For scheduled notifications — fast sources only (no Playwright serialization)
