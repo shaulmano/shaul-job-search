@@ -120,9 +120,15 @@ else:
     # לשמור מתי רצה לאחרונה.
     from datetime import datetime, timedelta, timezone
     hour = datetime.now(timezone(timedelta(hours=2))).hour
+    # 24.11.2026: חלון של שעתיים ולא שעה אחת. הסריקה מופעלת מהמשימה
+    # המתוזמנת כל כ-80 דקות, והריצות נחתו ב-06:30 וב-08:00 שעון ישראל, כלומר
+    # אף אחת לא נפלה בשעה 7. המעבר היומי לא רץ מאז 16.11, ו-jobify (אינדיד,
+    # ג'וב קרוב) שתק תשעה ימים עד שחדר המצב התריע. seen_jobs מונע כפילות
+    # אם שתי ריצות נפלות בחלון.
+    in_daily = job_server.DAILY_HOUR <= hour <= job_server.DAILY_HOUR + 1
     srcs = [s for s in job_server.SCHEDULED_SOURCES
-            if s not in job_server.DAILY_SOURCES or hour == job_server.DAILY_HOUR]
-    if hour == job_server.DAILY_HOUR:
+            if s not in job_server.DAILY_SOURCES or in_daily]
+    if in_daily:
         print(f'[notify] daily pass: {", ".join(job_server.DAILY_SOURCES)} included')
 
     job_server._run_notify_job(sources=srcs, always_notify=True)
