@@ -38,9 +38,6 @@ if mode == 'sample':
     if _m:
         role = role[:_m.start()]
         job_server._LINKEDIN_MAX_PAGES = int(_m.group(1))
-    if role.endswith(' @DD'):
-        role = role[:-4]
-        job_server._LINKEDIN_SORT = 'DD'
     scraper = job_server.SCRAPERS.get(src)
     if not scraper:
         raise SystemExit(f'unknown source: {src}. known: {", ".join(sorted(job_server.SCRAPERS))}')

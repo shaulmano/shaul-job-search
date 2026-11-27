@@ -169,11 +169,6 @@ def _linkedin_fetch_recruiter(job):
 # against 10 from one. Five pages x nine roles is 45 requests at a 3s throttle,
 # about 160s of the 900s scan budget.
 _LINKEDIN_MAX_PAGES = 5
-# 27.11.2026: בלי מיון לינקדאין מחזיר לפי רלוונטיות וחותכים ב-50, ולכן משרה חדשה
-# שדורגה נמוך נשארה מחוץ לחמישים ונמצאה רק ימים אחרי (13 מתוך 251 באו יותר
-# מיומיים אחרי הפרסום, 11 מהן בתפקידים הרחבים). 'DD' הוא "הכי חדש קודם".
-# ריק = התנהגות קודמת, לצורך מדידה ב-probe: `sample linkedin <role> @DD`.
-_LINKEDIN_SORT = ''
 _LINKEDIN_PAGE_SIZE = 10
 _LINKEDIN_ENRICH_CAP = 20
 
@@ -184,7 +179,6 @@ def _linkedin_page(role, tpr, start):
         'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
         f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}'
         f'&start={start}&count=50'
-        + (f'&sortBy={_LINKEDIN_SORT}' if _LINKEDIN_SORT else '')
     )
     # ארבעה ניסיונות ולא שלושה, והמתנה ראשונה קצרה: עמוד שננטש הוא משרות
     # שלא נכנסו, וזה יקר יותר מעוד עשר שניות של המתנה.
@@ -205,13 +199,12 @@ def _linkedin_page(role, tpr, start):
     raise Exception('LinkedIn 429 after 4 retries')
 
 
-def search_linkedin(role, time_filter='20h'):
-    import concurrent.futures
+def _linkedin_collect(role, time_filter, max_pages):
     tpr = TIME_MAP.get(time_filter, 'r72000')
 
     jobs, seen_urls = [], set()
     with _LINKEDIN_LOCK:
-        for page in range(_LINKEDIN_MAX_PAGES):
+        for page in range(max_pages):
             start = page * _LINKEDIN_PAGE_SIZE
             try:
                 html = _linkedin_page(role, tpr, start)
@@ -254,6 +247,28 @@ def search_linkedin(role, time_filter='20h'):
             # and stopping on that cost 39 of the 48 jobs for "Project Manager".
             if len(jobs) - before == 0:
                 break
+
+    return jobs
+
+
+# 27.11.2026, שאול: "איך משרה שפורסמה לפני 3 ימים נמצאת רק היום". נמדד מהראנר:
+# החיפוש הרחב "Project Manager" בחלון שבוע מחזיר 147 שורות, והסריקה קראה רק
+# חמישים. לינקדאין מדרג לפי רלוונטיות ולא לפי תאריך (גם עם sortBy=DD, שנקודת
+# הקצה של האורח מתעלמת ממנו), ולכן משרה חדשה שדורגה נמוך נשארה מחוץ לחמישים
+# ימים. ב-20 שעות אותו חיפוש מחזיר 63 שורות, כלומר תשעה עמודים מכסים אותו כולו.
+# לכן חיפוש שמילא את המכסה בחלון הרחב מקבל מעבר נוסף של 20 שעות, והחדשות
+# עומדות בראש הרשימה: ההעשרה (תיאור ומפרסם) חלה רק על העשרים הראשונות.
+_LINKEDIN_FRESH_PAGES = 9
+
+
+def search_linkedin(role, time_filter='20h'):
+    import concurrent.futures
+    jobs = _linkedin_collect(role, time_filter, _LINKEDIN_MAX_PAGES)
+    if time_filter != '20h' and len(jobs) >= _LINKEDIN_MAX_PAGES * _LINKEDIN_PAGE_SIZE * 0.8:
+        fresh = _linkedin_collect(role, '20h', _LINKEDIN_FRESH_PAGES)
+        have = {j['url'] for j in fresh}
+        print(f'  [linkedin] "{role}" filled the cap at {len(jobs)}; fresh 20h pass returned {len(fresh)}')
+        jobs = fresh + [j for j in jobs if j['url'] not in have]
 
     # Enrich with recruiter info in parallel (best-effort, 15s budget).
     # Paging multiplied the job count by five, and this fires one detail request
