@@ -169,6 +169,11 @@ def _linkedin_fetch_recruiter(job):
 # against 10 from one. Five pages x nine roles is 45 requests at a 3s throttle,
 # about 160s of the 900s scan budget.
 _LINKEDIN_MAX_PAGES = 5
+# 27.11.2026: בלי מיון לינקדאין מחזיר לפי רלוונטיות וחותכים ב-50, ולכן משרה חדשה
+# שדורגה נמוך נשארה מחוץ לחמישים ונמצאה רק ימים אחרי (13 מתוך 251 באו יותר
+# מיומיים אחרי הפרסום, 11 מהן בתפקידים הרחבים). 'DD' הוא "הכי חדש קודם".
+# ריק = התנהגות קודמת, לצורך מדידה ב-probe: `sample linkedin <role> @DD`.
+_LINKEDIN_SORT = ''
 _LINKEDIN_PAGE_SIZE = 10
 _LINKEDIN_ENRICH_CAP = 20
 
@@ -179,6 +184,7 @@ def _linkedin_page(role, tpr, start):
         'https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search'
         f'?keywords={quote(role)}&location=Israel&f_TPR={tpr}'
         f'&start={start}&count=50'
+        + (f'&sortBy={_LINKEDIN_SORT}' if _LINKEDIN_SORT else '')
     )
     # ארבעה ניסיונות ולא שלושה, והמתנה ראשונה קצרה: עמוד שננטש הוא משרות
     # שלא נכנסו, וזה יקר יותר מעוד עשר שניות של המתנה.

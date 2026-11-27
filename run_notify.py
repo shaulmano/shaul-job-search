@@ -33,6 +33,9 @@ if mode == 'sample':
     src = sys.argv[2] if len(sys.argv) > 2 else 'gotfriends'
     # join: התפקיד הוא שתי מילים ויותר, והוא מגיע מהוורקפלו בלי מרכאות.
     role = ' '.join(sys.argv[3:]) or 'Project Manager'
+    if role.endswith(' @DD'):
+        role = role[:-4]
+        job_server._LINKEDIN_SORT = 'DD'
     scraper = job_server.SCRAPERS.get(src)
     if not scraper:
         raise SystemExit(f'unknown source: {src}. known: {", ".join(sorted(job_server.SCRAPERS))}')
