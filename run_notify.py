@@ -33,6 +33,11 @@ if mode == 'sample':
     src = sys.argv[2] if len(sys.argv) > 2 else 'gotfriends'
     # join: התפקיד הוא שתי מילים ויותר, והוא מגיע מהוורקפלו בלי מרכאות.
     role = ' '.join(sys.argv[3:]) or 'Project Manager'
+    import re as _re
+    _m = _re.search(r' @P(\d+)$', role)
+    if _m:
+        role = role[:_m.start()]
+        job_server._LINKEDIN_MAX_PAGES = int(_m.group(1))
     if role.endswith(' @DD'):
         role = role[:-4]
         job_server._LINKEDIN_SORT = 'DD'
