@@ -48,6 +48,8 @@ if mode == 'sample':
     # שעות בזמן שהסריקה שואלת לפי _SCAN_WINDOW_BY_SOURCE, ולכן הוא החזיר אפס
     # על מקור שמחזיר שמונים שורות בסריקה אמיתית.
     window = job_server._SCAN_WINDOW_BY_SOURCE.get(src, job_server._SCAN_WINDOW)
+    if os.environ.get('SAMPLE_WINDOW'):
+        window = os.environ['SAMPLE_WINDOW']
     rows = scraper(role, window) or []
     print(f'[sample] {src} / "{role}" window={window} returned {len(rows)} rows')
     for r in rows[:40]:
