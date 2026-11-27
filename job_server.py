@@ -213,7 +213,13 @@ def _linkedin_collect(role, time_filter, max_pages):
                 # means this role is done, and what we already have still counts.
                 if page == 0:
                     raise
-                break
+                # 27.11.2026: אחרי ארבעה 429 לא מוותרים מיד. מעבר שני נחתך כך ב-29
+                # שורות במקום 63, ושאר השורות הן המשרות החדשות שהוא נועד לתפוס.
+                time.sleep(30)
+                try:
+                    html = _linkedin_page(role, tpr, start)
+                except Exception:
+                    break
 
             soup = BeautifulSoup(html, 'html.parser')
             before = len(jobs)
@@ -265,6 +271,7 @@ def search_linkedin(role, time_filter='20h'):
     import concurrent.futures
     jobs = _linkedin_collect(role, time_filter, _LINKEDIN_MAX_PAGES)
     if time_filter != '20h' and len(jobs) >= _LINKEDIN_MAX_PAGES * _LINKEDIN_PAGE_SIZE * 0.8:
+        time.sleep(10)   # אחרי חמישה עמודים לינקדאין כבר מאט
         fresh = _linkedin_collect(role, '20h', _LINKEDIN_FRESH_PAGES)
         have = {j['url'] for j in fresh}
         print(f'  [linkedin] "{role}" filled the cap at {len(jobs)}; fresh 20h pass returned {len(fresh)}')
